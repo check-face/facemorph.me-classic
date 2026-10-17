@@ -1168,7 +1168,7 @@ let private explainSection =
             Html.p "The first face waits for the models to download and for a quick check that this device gets the maths right. After that a face takes under a second on a computer with a good graphics card, and longer on phones and on computers where the browser can't use the graphics card."
             Html.p "Slower devices still finish; the page tells you how long it expects. For long morphs, a laptop or desktop with a graphics card is much quicker."]
         faq "What's in a debug report?" [
-            Html.p "A random ID for the report, the site version, your browser and operating system, rough device facts like the number of processor cores, which processing mode was used, how long each step took, and error codes. Never your photos, words, faces or videos. Reports are deleted after 30 days."
+            Html.p "A random ID for the report, the site version, your browser and operating system, rough device facts like the number of processor cores, which processing mode was used, how long each step took, and error codes. Never your photos, words, faces or videos. Reports are kept to help us fix problems, with no deletion date."
             Html.p "You can turn reporting on or off at any time under For testing. After an error you can also send just that one report without turning reporting on."]
         faq "Something went wrong. How do I tell you?" [
             Html.p [Html.a [prop.href (issueUrl "");prop.target "_blank";prop.rel "noopener";prop.text "Open an issue on GitHub"];Html.text " (the version and device are filled in for you), or email ";Html.a [prop.href "mailto:checkfaceml@gmail.com";prop.text "checkfaceml@gmail.com"];Html.text ". If you sent a debug report, include its reference."]]
@@ -1228,7 +1228,7 @@ let view state dispatch = App.ThemedApp [
             Html.section [prop.className "next-invite box";prop.custom("role","region");prop.ariaLabel "Help us with this test";prop.children [
                 Html.h2 "Thanks for testing FaceMorph"
                 Html.p "If anything is slow, wrong or broken, a debug report tells us what happened without you having to describe it."
-                Html.p "Reports contain a random device ID, app and browser versions, processing stages, timings and safe error codes. They never contain your photos, the words you type, the faces you make, or anything identifying you. They go to our private diagnostics service and are deleted after 30 days."
+                Html.p "Reports contain a random device ID, app and browser versions, processing stages, timings and safe error codes. They never contain your photos, the words you type, the faces you make, or anything identifying you. They go to our private diagnostics service where they are kept with no deletion date."
                 Html.div [prop.className "next-actions";prop.children [
                     Mui.button [button.variant.contained;prop.onClick(fun _ -> dispatch(Consent(true,"invite")));button.children "Turn on debug reporting"]
                     Mui.button [button.variant.text;prop.onClick(fun _ -> dispatch DismissInvite);button.children "Not now"]]]
@@ -1436,7 +1436,7 @@ let view state dispatch = App.ThemedApp [
             snackbar.ContentProps [prop.className "next-consent-toast next-failure-toast"]
             snackbar.message (Html.span [prop.className "next-consent-message";prop.children [
                 Html.strong "Something went wrong."
-                Html.text " Send a debug report so we can fix it? Timings, device type and error codes only. Never your photos, words or faces. Deleted after 30 days."]])
+                Html.text " Send a debug report so we can fix it? Timings, device type and error codes only. Never your photos, words or faces. Kept with no deletion date."]])
             snackbar.action [
                 Mui.button [button.color.inherit';button.variant.text;prop.onClick(fun _ -> dispatch ReportFailure);button.children "Send report"]
                 Mui.button [button.color.inherit';button.variant.text;prop.onClick(fun _ -> dispatch DismissFailureToast);button.children "Not now"]]]
@@ -1446,7 +1446,7 @@ let view state dispatch = App.ThemedApp [
             snackbar.ContentProps [prop.className "next-consent-toast"]
             snackbar.message (Html.span [prop.className "next-consent-message";prop.children [
                 Html.strong "Help us test?"
-                Html.text " Send debug reports: timings, device type and error codes. Never your photos, words or faces. Deleted after 30 days."]])
+                Html.text " Send debug reports: timings, device type and error codes. Never your photos, words or faces. Kept with no deletion date."]])
             snackbar.action [
                 Mui.button [button.color.inherit';button.variant.text;prop.onClick(fun _ -> dispatch(Consent(true,"toast")));button.children "Turn on"]
                 Mui.button [button.color.inherit';button.variant.text;prop.onClick(fun _ -> dispatch(Consent(false,"toast")));button.children "No thanks"]
