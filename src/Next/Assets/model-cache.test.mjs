@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomBytes } from 'node:crypto';
 import { Sha256 } from './sha256.mjs';
-import { createModelCache, createBrowserModelCache, storageStatus } from './model-cache.mjs';
+import { createModelCache, createBrowserModelCache, storageStatus, runtimeMirror } from './model-cache.mjs';
 
 const bytes = new TextEncoder().encode('synthetic model fixture');
 const digest = value => createHash('sha256').update(value).digest('hex');
@@ -156,7 +156,7 @@ test('persistence granted/denied/unsupported/failure is explicit', async () => {
 });
 test('rejects opaque/partial responses and invalid identities', async () => {
   const f = fixture(async () => new Response(bytes, { status: 206 }));
-  await assert.rejects(f.cache.acquire(asset()), /HTTP 200/);
+  await assert.rejects(f.cache.acquire(asset()), /HTTP 206/);
   await assert.rejects(f.cache.acquire({ ...asset(), sha256: 'latest' }), TypeError);
   await assert.rejects(f.cache.acquire({ ...asset(), url: 'http://models.example/a' }), TypeError);
   assert.equal(f.entries.size, 0);
@@ -512,10 +512,10 @@ test('a dropped connection is retried in the read-ahead path too', async () => {
 });
 test('a missing chunk is not retried, a persistent server error gives up, and both name the status', async () => {
   const missing = flakyShards(url => unitOf(url) === 2 ? new Response('', { status: 404 }) : new Response(unitPieces[unitOf(url)]));
-  await assert.rejects(missing.cache.acquire(chunked()), /HTTP 200 response \(got 404\)/);
+  await assert.rejects(missing.cache.acquire(chunked()), /could not be downloaded \(HTTP 404\)/);
   assert.equal(missing.seen.filter(url => unitOf(url) === 2).length, 1);
   const down = flakyShards(url => unitOf(url) === 0 ? new Response('', { status: 503 }) : new Response(unitPieces[unitOf(url)]));
-  await assert.rejects(down.cache.acquire(chunked()), /got 503/);
+  await assert.rejects(down.cache.acquire(chunked()), /temporary fault \(HTTP 503\)/);
   assert.equal(down.seen.filter(url => unitOf(url) === 0).length, 4, 'first try plus one per configured delay');
 });
 test('cancelling during a retry pause stops at once', async () => {
@@ -524,4 +524,33 @@ test('cancelling during a retry pause stops at once', async () => {
   const cache = createModelCache({ ...f.options, retryDelaysMs: [60000] });
   await assert.rejects(cache.acquire(chunkAsset(pieces(2)), { signal: controller.signal }), { name: 'AbortError' });
   assert.equal(f.calls.length <= 2, true);
+});
+test('with a mirror, the second try goes to it; a failing mirror only moves on to the site again', async () => {
+  const mirrorOf = url => url.replace('https://models.example/', 'https://mirror.example/');
+  const dir = fakeDirectory(), shards = createShardStore(dir), seen = [];
+  const f = fixture(async url => { seen.push(url); const unit = unitOf(url);
+    if (unit !== 1) return new Response(unitPieces[unit]);
+    if (url.startsWith('https://mirror.example/')) return new Response('', { status: 404 });
+    return url.endsWith('retry=2') ? new Response(unitPieces[1]) : new Response('', { status: 500 }); });
+  const cache = createModelCache({ ...f.options, shards, retryDelaysMs: [0, 0, 0], mirrorOf });
+  assert.deepEqual(Buffer.from(await (await cache.acquire(chunked())).bytes()), Buffer.from(shardModel));
+  assert.deepEqual(seen.filter(url => unitOf(url) === 1), ['https://models.example/model.1', 'https://mirror.example/model.1', 'https://models.example/model.1?retry=2']);
+  const rescued = createModelCache({ ...fixture(async url => url.startsWith('https://mirror.example/') ? new Response(unitPieces[unitOf(url)]) : new Response('', { status: 503 })).options,
+    shards: createShardStore(fakeDirectory()), retryDelaysMs: [0], mirrorOf });
+  assert.deepEqual(Buffer.from(await (await rescued.acquire(chunked())).bytes()), Buffer.from(shardModel), 'the mirror alone can complete the model');
+});
+test('a site fault reported through a mirror failure still names the site status', async () => {
+  const f = fixture(async url => new Response('', { status: url.startsWith('https://mirror.example/') ? 404 : 500 }));
+  const cache = createModelCache({ ...f.options, shards: createShardStore(fakeDirectory()), retryDelaysMs: [0], mirrorOf: url => url.replace('models.example', 'mirror.example') });
+  await assert.rejects(cache.acquire(chunked()), /HTTP 500/);
+});
+test('the runtime mirror applies only to same-origin runtime files on a facemorph.me page', () => {
+  const page = origin => ({ origin, hostname: new URL(origin).hostname });
+  const next = runtimeMirror(page('https://next.facemorph.me'));
+  assert.equal(next('https://next.facemorph.me/runtime/encoder-stream/abc/part-091.onnx'), 'https://models.facemorph.me/runtime/encoder-stream/abc/part-091.onnx');
+  assert.equal(next('https://next.facemorph.me/app.js'), undefined);
+  assert.equal(next('https://elsewhere.example/runtime/x'), undefined);
+  assert.equal(runtimeMirror(page('http://localhost:8080'))('http://localhost:8080/runtime/x'), undefined);
+  assert.equal(runtimeMirror(page('https://facemorph.me.evil.example'))('https://facemorph.me.evil.example/runtime/x'), undefined);
+  assert.equal(runtimeMirror(undefined)('https://next.facemorph.me/runtime/x'), undefined);
 });

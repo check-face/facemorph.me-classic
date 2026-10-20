@@ -67,6 +67,7 @@ function classify(error){
  if(/checksum|sha|integrity|verified|tamper/i.test(text))return 'integrity';
  if(name==='TimeoutError'||/timed out|timeout|deadline/i.test(text))return 'timeout';
  if(name==='TypeError'&&/fetch|network|load failed/i.test(text))return 'network';
+ if(/download server|could not be downloaded/i.test(text))return 'network';
  if(/decode|codec|image could not|could not be read|could not prepare|cropp/i.test(text))return 'decode';
  return 'unknown';
 }

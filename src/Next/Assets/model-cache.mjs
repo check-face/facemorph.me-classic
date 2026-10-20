@@ -29,19 +29,24 @@ export function validateAsset(asset) {
 const PIECE_BYTES = 256 * 1024;
 const SHARD_UNIT_LIMIT = 64 * 1024 * 1024; // unchunked assets above this stay in Cache Storage
 const hex = buffer => Array.from(new Uint8Array(buffer), x => x.toString(16).padStart(2, '0')).join('');
-/** A non-200 answer; `transient` marks the statuses worth asking again (server faults, rate limits). */
+/** A non-200 answer; `transient` marks the statuses worth asking again (server faults, rate limits).
+ * The message is shown to the visitor as it is, so it says what happened and what to do. */
 function downloadRefused(response) {
   void response.body?.cancel().catch(() => {});
-  const error = new Error(`Asset download requires a readable complete HTTP 200 response (got ${response.type === 'opaque' ? 'opaque' : response.status})`);
-  error.status = response.status;
-  error.transient = response.status >= 500 || response.status === 429 || response.status === 408;
-  return error;
+  const status = response.type === 'opaque' ? 'opaque response' : `HTTP ${response.status}`;
+  const transient = response.status >= 500 || response.status === 429 || response.status === 408;
+  const error = new Error(transient
+    ? `The model download server had a temporary fault (${status}). Parts already downloaded are kept: try again in a few minutes.`
+    : `A model file could not be downloaded (${status}).`);
+  return Object.assign(error, { status: response.status, transient });
 }
 // 20 October: one Cloudflare edge answered HTTP 500 for a single 9 MB encoder chunk for twenty-five
 // minutes (part-033, then part-091; the same files were 200 everywhere else), and every attempt
 // failed the whole photo on that one chunk out of a hundred. A server fault or a dropped connection
 // is asked again after a pause, under a fresh query string so neither the browser nor the edge
-// replays the bad answer. Bytes are still checked against the pin, so a retry cannot admit wrong ones.
+// replays the bad answer. When a mirror is known (models.facemorph.me, R2: separate storage), every
+// other retry goes there instead, and any failure of the mirror just moves on to the next attempt.
+// Bytes are checked against the pin wherever they come from, so a retry cannot admit wrong ones.
 export const CHUNK_RETRY_DELAYS_MS = Object.freeze([1000, 4000, 10000, 20000]);
 const retryable = error => error?.transient === true || error instanceof TypeError; // fetch reports a dropped connection as TypeError
 const pauseFor = (ms, signal) => new Promise((resolve, reject) => {
@@ -49,17 +54,30 @@ const pauseFor = (ms, signal) => new Promise((resolve, reject) => {
   const timer = setTimeout(() => { signal?.removeEventListener('abort', done); resolve(); }, ms);
   signal?.addEventListener('abort', done, { once: true });
 });
-async function fetchVerifiedChunk(part, download, signal, delays = CHUNK_RETRY_DELAYS_MS) {
+async function fetchVerifiedChunk(part, download, signal, delays = CHUNK_RETRY_DELAYS_MS, mirrorOf = () => undefined) {
+  const mirror = mirrorOf(part.url);
+  let first;
   for (let attempt = 0; ; attempt++) {
+    const fromMirror = Boolean(mirror) && attempt % 2 === 1;
     try {
-      const url = attempt ? Object.assign(new URL(part.url), { search: `retry=${attempt}` }).href : part.url;
+      const url = fromMirror ? mirror : attempt ? Object.assign(new URL(part.url), { search: `retry=${attempt}` }).href : part.url;
       return await fetchChunkOnce(attempt ? { ...part, url } : part, download, signal);
     } catch (error) {
       check(signal);
-      if (attempt >= delays.length || !retryable(error)) throw error;
+      first ??= error; // the site's own answer is the one worth reporting
+      if (attempt >= delays.length || !(fromMirror || retryable(error))) throw fromMirror ? first : error;
       await pauseFor(delays[attempt], signal);
     }
   }
+}
+/** The mirror copy of a same-origin runtime file on a facemorph.me page; none elsewhere (local, native, tests). */
+export const RUNTIME_MIRROR = 'https://models.facemorph.me';
+export function runtimeMirror(location = globalThis.location) {
+  return url => {
+    const page = location?.hostname || '', target = new URL(url);
+    if (!(page === 'facemorph.me' || page.endsWith('.facemorph.me')) || target.origin !== location.origin || !target.pathname.startsWith('/runtime/')) return undefined;
+    return RUNTIME_MIRROR + target.pathname;
+  };
 }
 /** One pinned chunk, fully read into a buffer of exactly its declared size and checked by the platform digest. */
 async function fetchChunkOnce(part, download, signal) {
@@ -165,7 +183,7 @@ export function createRecordAccess(store) {
  * Observers receive hashes/status only (no URLs or authentication material).
  */
 export function createModelCache({ store, shards = null, fetcher = globalThis.fetch, locks,
-  timeoutMs = 300000, maxConcurrent = 2, readAhead = 2, retryDelaysMs = CHUNK_RETRY_DELAYS_MS, report = () => {} }) {
+  timeoutMs = 300000, maxConcurrent = 2, readAhead = 2, retryDelaysMs = CHUNK_RETRY_DELAYS_MS, mirrorOf = () => undefined, report = () => {} }) {
   if (!store || !Number.isFinite(timeoutMs) || timeoutMs <= 0 || !Number.isInteger(maxConcurrent) || maxConcurrent < 1
     || !Number.isInteger(readAhead) || readAhead < 1 || readAhead > 8)
     throw new TypeError('Invalid cache settings');
@@ -257,7 +275,7 @@ export function createModelCache({ store, shards = null, fetcher = globalThis.fe
     signal.addEventListener('abort', relay, { once: true });
     try {
       await eachUnit(missing, readAhead, async unit => {
-        try { await commitUnit(asset, unit, await fetchVerifiedChunk(unit, fetchBody, stop.signal, retryDelaysMs)); }
+        try { await commitUnit(asset, unit, await fetchVerifiedChunk(unit, fetchBody, stop.signal, retryDelaysMs, mirrorOf)); }
         catch (error) { stop.abort(error); throw error; }
         loaded += unit.size;
         emit({ status: 'progress', sha256: asset.sha256, loaded, bytes: asset.size });
@@ -283,7 +301,7 @@ export function createModelCache({ store, shards = null, fetcher = globalThis.fe
           const again = await shards.read(unit.sha256, unit.size); // another tab may have repaired it
           if (again && await platformHex(again) === unit.sha256) return again;
           await shards.remove(unit.sha256);
-          const fresh = await fetchVerifiedChunk(unit, fetchBody, AbortSignal.timeout(timeoutMs), retryDelaysMs);
+          const fresh = await fetchVerifiedChunk(unit, fetchBody, AbortSignal.timeout(timeoutMs), retryDelaysMs, mirrorOf);
           await commitUnit(asset, unit, fresh).catch(() => {}); // the verified bytes are served even if saving fails
           return fresh;
         });
@@ -355,7 +373,7 @@ export function createModelCache({ store, shards = null, fetcher = globalThis.fe
       let started = 0;
       const fill = () => {
         while (ahead.length < readAhead && started < asset.chunks.length) {
-          const part = asset.chunks[started++], task = fetchVerifiedChunk(part, download, stop.signal, retryDelaysMs);
+          const part = asset.chunks[started++], task = fetchVerifiedChunk(part, download, stop.signal, retryDelaysMs, mirrorOf);
           task.catch(() => {}); // surfaced where it is awaited; a later chunk must not become an unhandled rejection
           ahead.push(task);
         }
@@ -539,7 +557,7 @@ export async function createBrowserModelCache(options = {}) {
   const origin = /^https?:\/\//.test(location.origin) ? location.origin : 'https://next.facemorph.me';
   const key = hash => new URL(`/__checkface_model_blobs__/sha256/${hash}`, origin).href;
   const shards = options.shards !== undefined ? options.shards : await openShardStore({readOnly:options.readOnly===true});
-  return createModelCache({ ...options, shards, locks: globalThis.navigator?.locks,
+  return createModelCache({ mirrorOf: runtimeMirror(), ...options, shards, locks: globalThis.navigator?.locks,
     store: {
       get: hash => cache.match(key(hash)),
       put: (hash, response) => cache.put(key(hash), response),

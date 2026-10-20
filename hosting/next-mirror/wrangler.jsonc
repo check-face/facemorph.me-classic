@@ -1,0 +1,12 @@
+{
+  "name": "facemorph-models",
+  "account_id": "8f550a622a484c03d9267efd45573583",
+  "compatibility_date": "2026-09-16",
+  "main": "worker.mjs",
+  // Served on the models.facemorph.me custom domain, attached once through the API as for
+  // next.facemorph.me (wrangler leaves an attached domain alone when no routes are listed).
+  "workers_dev": false,
+  "r2_buckets": [{ "binding": "MIRROR", "bucket_name": "facemorph-runtime-mirror" }],
+  "services": [{ "binding": "SITE", "service": "facemorph-next" }],
+  "observability": { "enabled": false }
+}

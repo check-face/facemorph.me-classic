@@ -29,7 +29,7 @@ jobs:
       - name: Every test file is actually run
         run: node scripts/check-tests-listed.mjs
       - name: Shipping runtime, media, privacy and input regressions
-        run: node --test src/Next/image-encoder.test.mjs src/Next/scheduler.test.mjs src/Next/recovery-metadata.test.mjs src/Next/infill.test.mjs src/Next/last-result.test.mjs src/Next/analytics.test.mjs hosting/next-static/analytics.test.mjs src/Next/video-worker.test.mjs src/Next/browser/route-priors.test.mjs src/Next/Assets/model-cache.test.mjs src/Next/browser/runtime.test.mjs src/Next/browser/mobile-runtime.test.mjs src/Next/browser/originals.test.mjs src/Next/browser/webgpu-engine.test.mjs src/Next/browser/canary-qualification.test.mjs src/Next/browser/acquisition-budget.test.mjs src/Next/browser/fused-resample.test.mjs src/Next/media.test.mjs src/Next/morph-frames.test.mjs src/Next/fresh-review.test.mjs src/Next/photo-selection.test.mjs src/Next/crop-queue.test.mjs src/Next/browser/encoder-preflight.test.mjs src/Next/photo/crop-view.test.mjs src/Next/estimate.test.mjs src/Next/testing-link.test.mjs src/Next/route-choice.test.mjs src/Next/route-report.test.mjs src/Next/reporting.test.mjs src/Next/stage-labels.test.mjs src/Next/storage-request.test.mjs src/Next/model-inventory.test.mjs src/Next/logging.test.mjs src/Next/public-previews.test.mjs hosting/next-cloudflare/worker.test.mjs
+        run: node --test src/Next/image-encoder.test.mjs src/Next/scheduler.test.mjs src/Next/recovery-metadata.test.mjs src/Next/infill.test.mjs src/Next/last-result.test.mjs src/Next/analytics.test.mjs hosting/next-static/analytics.test.mjs src/Next/video-worker.test.mjs src/Next/browser/route-priors.test.mjs src/Next/Assets/model-cache.test.mjs src/Next/browser/runtime.test.mjs src/Next/browser/mobile-runtime.test.mjs src/Next/browser/originals.test.mjs src/Next/browser/webgpu-engine.test.mjs src/Next/browser/canary-qualification.test.mjs src/Next/browser/acquisition-budget.test.mjs src/Next/browser/fused-resample.test.mjs src/Next/media.test.mjs src/Next/morph-frames.test.mjs src/Next/fresh-review.test.mjs src/Next/photo-selection.test.mjs src/Next/crop-queue.test.mjs src/Next/browser/encoder-preflight.test.mjs src/Next/photo/crop-view.test.mjs src/Next/estimate.test.mjs src/Next/testing-link.test.mjs src/Next/route-choice.test.mjs src/Next/route-report.test.mjs src/Next/reporting.test.mjs src/Next/stage-labels.test.mjs src/Next/storage-request.test.mjs src/Next/model-inventory.test.mjs src/Next/logging.test.mjs src/Next/public-previews.test.mjs hosting/next-cloudflare/worker.test.mjs hosting/next-mirror/worker.test.mjs
       - name: Compiled UI imports resolve against the hand-written bridges
         run: node scripts/check-bridge-imports.mjs
       # Operator release gate: while a morph renders the line increments an integer and says
@@ -204,3 +204,17 @@ jobs:
           done
           [ -z "$missing" ] || { echo "$missing"; exit 1; }
           echo "$(wc -l < ../runtime-files) runtime files served"
+      # models.facemorph.me (hosting/next-mirror) is the second copy the page falls back to when a
+      # chunk keeps failing here. It copies each immutable runtime file on first request; warming
+      # every one now means the copy is complete before any visitor needs it.
+      - name: Deploy the runtime mirror
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx -y wrangler@4.149.0 deploy --config hosting/next-mirror/wrangler.jsonc --message "CI ${GITHUB_SHA::7}"
+      - name: Warm the runtime mirror with every immutable runtime file
+        run: |
+          grep -E '^runtime/(assets|chunks|manifests|photo|encoder-stream)/' runtime-files > mirrored-files
+          failed=$(xargs -P 8 -I{} sh -c 'code=$(curl -s -o /dev/null -I --retry 3 --retry-all-errors -w "%{http_code}" "https://models.facemorph.me/{}"); [ "$code" = 200 ] || echo "$code {}"' < mirrored-files)
+          [ -z "$failed" ] || { echo "$failed"; exit 1; }
+          echo "$(wc -l < mirrored-files) runtime files held by models.facemorph.me"
