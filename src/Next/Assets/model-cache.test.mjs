@@ -489,3 +489,39 @@ test('shards: invalid network bytes never commit a unit', async () => {
   await assert.rejects(createModelCache({ ...f.options, shards }).acquire(chunked()), /integrity/);
   assert.equal([...dir.files.values()].filter(v => v.length).length, 0);
 });
+
+// 20 October: an edge answered 500 for one encoder chunk for minutes and failed every photo on it.
+const unitOf = url => Number(new URL(url).pathname.split('.').pop());
+function flakyShards(answer) {
+  const dir = fakeDirectory(), shards = createShardStore(dir), seen = [];
+  const f = fixture(async url => { seen.push(url); return answer(url, seen.filter(u => unitOf(u) === unitOf(url)).length); });
+  return { dir, seen, cache: createModelCache({ ...f.options, shards, retryDelaysMs: [0, 0, 0] }) };
+}
+test('a chunk answered with a server error is asked again under a fresh query and the model still arrives', async () => {
+  const f = flakyShards((url, nth) => unitOf(url) === 1 && nth <= 2 ? new Response('edge fault', { status: 500 }) : new Response(unitPieces[unitOf(url)]));
+  assert.deepEqual(Buffer.from(await (await f.cache.acquire(chunked())).bytes()), Buffer.from(shardModel));
+  assert.deepEqual(f.seen.filter(url => unitOf(url) === 1), ['https://models.example/model.1', 'https://models.example/model.1?retry=1', 'https://models.example/model.1?retry=2']);
+});
+test('a dropped connection is retried in the read-ahead path too', async () => {
+  const parts = pieces(3); let failed = false;
+  const f = fixture(async url => { if (url.includes('chunk-1') && !failed) { failed = true; throw new TypeError('Failed to fetch'); } return new Response(parts[Number(new URL(url).pathname.split('-')[1])]); });
+  const cache = createModelCache({ ...f.options, retryDelaysMs: [0] });
+  const handle = await cache.acquire(chunkAsset(parts));
+  assert.deepEqual([...new Uint8Array(await (await handle.open()).arrayBuffer())], [...joined(parts)]);
+  assert.ok(f.calls.includes('https://models.example/chunk-1?retry=1'));
+});
+test('a missing chunk is not retried, a persistent server error gives up, and both name the status', async () => {
+  const missing = flakyShards(url => unitOf(url) === 2 ? new Response('', { status: 404 }) : new Response(unitPieces[unitOf(url)]));
+  await assert.rejects(missing.cache.acquire(chunked()), /HTTP 200 response \(got 404\)/);
+  assert.equal(missing.seen.filter(url => unitOf(url) === 2).length, 1);
+  const down = flakyShards(url => unitOf(url) === 0 ? new Response('', { status: 503 }) : new Response(unitPieces[unitOf(url)]));
+  await assert.rejects(down.cache.acquire(chunked()), /got 503/);
+  assert.equal(down.seen.filter(url => unitOf(url) === 0).length, 4, 'first try plus one per configured delay');
+});
+test('cancelling during a retry pause stops at once', async () => {
+  const controller = new AbortController();
+  const f = fixture(async () => { setTimeout(() => controller.abort(), 0); return new Response('', { status: 500 }); });
+  const cache = createModelCache({ ...f.options, retryDelaysMs: [60000] });
+  await assert.rejects(cache.acquire(chunkAsset(pieces(2)), { signal: controller.signal }), { name: 'AbortError' });
+  assert.equal(f.calls.length <= 2, true);
+});

@@ -29,8 +29,40 @@ export function validateAsset(asset) {
 const PIECE_BYTES = 256 * 1024;
 const SHARD_UNIT_LIMIT = 64 * 1024 * 1024; // unchunked assets above this stay in Cache Storage
 const hex = buffer => Array.from(new Uint8Array(buffer), x => x.toString(16).padStart(2, '0')).join('');
+/** A non-200 answer; `transient` marks the statuses worth asking again (server faults, rate limits). */
+function downloadRefused(response) {
+  void response.body?.cancel().catch(() => {});
+  const error = new Error(`Asset download requires a readable complete HTTP 200 response (got ${response.type === 'opaque' ? 'opaque' : response.status})`);
+  error.status = response.status;
+  error.transient = response.status >= 500 || response.status === 429 || response.status === 408;
+  return error;
+}
+// 20 October: one Cloudflare edge answered HTTP 500 for a single 9 MB encoder chunk for twenty-five
+// minutes (part-033, then part-091; the same files were 200 everywhere else), and every attempt
+// failed the whole photo on that one chunk out of a hundred. A server fault or a dropped connection
+// is asked again after a pause, under a fresh query string so neither the browser nor the edge
+// replays the bad answer. Bytes are still checked against the pin, so a retry cannot admit wrong ones.
+export const CHUNK_RETRY_DELAYS_MS = Object.freeze([1000, 4000, 10000, 20000]);
+const retryable = error => error?.transient === true || error instanceof TypeError; // fetch reports a dropped connection as TypeError
+const pauseFor = (ms, signal) => new Promise((resolve, reject) => {
+  const done = () => { clearTimeout(timer); reject(signal.reason || aborted()); };
+  const timer = setTimeout(() => { signal?.removeEventListener('abort', done); resolve(); }, ms);
+  signal?.addEventListener('abort', done, { once: true });
+});
+async function fetchVerifiedChunk(part, download, signal, delays = CHUNK_RETRY_DELAYS_MS) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const url = attempt ? Object.assign(new URL(part.url), { search: `retry=${attempt}` }).href : part.url;
+      return await fetchChunkOnce(attempt ? { ...part, url } : part, download, signal);
+    } catch (error) {
+      check(signal);
+      if (attempt >= delays.length || !retryable(error)) throw error;
+      await pauseFor(delays[attempt], signal);
+    }
+  }
+}
 /** One pinned chunk, fully read into a buffer of exactly its declared size and checked by the platform digest. */
-async function fetchVerifiedChunk(part, download, signal) {
+async function fetchChunkOnce(part, download, signal) {
   const body = await download(part, signal);
   if (!body) throw new Error('Asset response has no readable body');
   const out = new Uint8Array(part.size), reader = body.getReader();
@@ -133,7 +165,7 @@ export function createRecordAccess(store) {
  * Observers receive hashes/status only (no URLs or authentication material).
  */
 export function createModelCache({ store, shards = null, fetcher = globalThis.fetch, locks,
-  timeoutMs = 300000, maxConcurrent = 2, readAhead = 2, report = () => {} }) {
+  timeoutMs = 300000, maxConcurrent = 2, readAhead = 2, retryDelaysMs = CHUNK_RETRY_DELAYS_MS, report = () => {} }) {
   if (!store || !Number.isFinite(timeoutMs) || timeoutMs <= 0 || !Number.isInteger(maxConcurrent) || maxConcurrent < 1
     || !Number.isInteger(readAhead) || readAhead < 1 || readAhead > 8)
     throw new TypeError('Invalid cache settings');
@@ -144,10 +176,7 @@ export function createModelCache({ store, shards = null, fetcher = globalThis.fe
   async function fetchBody(part, signal) {
     const response = await fetcher(part.url, { signal, credentials: 'omit', cache: 'default', mode: 'cors' });
     check(signal);
-    if (!response.ok || response.status !== 200 || response.type === 'opaque') {
-      void response.body?.cancel().catch(() => {});
-      throw new Error('Asset download requires a readable complete HTTP 200 response');
-    }
+    if (!response.ok || response.status !== 200 || response.type === 'opaque') throw downloadRefused(response);
     return response.body;
   }
   // ---- Shard store (OPFS) -------------------------------------------------------------------
@@ -228,7 +257,7 @@ export function createModelCache({ store, shards = null, fetcher = globalThis.fe
     signal.addEventListener('abort', relay, { once: true });
     try {
       await eachUnit(missing, readAhead, async unit => {
-        try { await commitUnit(asset, unit, await fetchVerifiedChunk(unit, fetchBody, stop.signal)); }
+        try { await commitUnit(asset, unit, await fetchVerifiedChunk(unit, fetchBody, stop.signal, retryDelaysMs)); }
         catch (error) { stop.abort(error); throw error; }
         loaded += unit.size;
         emit({ status: 'progress', sha256: asset.sha256, loaded, bytes: asset.size });
@@ -254,7 +283,7 @@ export function createModelCache({ store, shards = null, fetcher = globalThis.fe
           const again = await shards.read(unit.sha256, unit.size); // another tab may have repaired it
           if (again && await platformHex(again) === unit.sha256) return again;
           await shards.remove(unit.sha256);
-          const fresh = await fetchVerifiedChunk(unit, fetchBody, AbortSignal.timeout(timeoutMs));
+          const fresh = await fetchVerifiedChunk(unit, fetchBody, AbortSignal.timeout(timeoutMs), retryDelaysMs);
           await commitUnit(asset, unit, fresh).catch(() => {}); // the verified bytes are served even if saving fails
           return fresh;
         });
@@ -308,10 +337,7 @@ export function createModelCache({ store, shards = null, fetcher = globalThis.fe
     async function download(part, from = signal) {
       const response = await fetcher(part.url, { signal: from, credentials: 'omit', cache: 'default', mode: 'cors' });
       check(from);
-      if (!response.ok || response.status !== 200 || response.type === 'opaque') {
-        void response.body?.cancel().catch(() => {});
-        throw new Error('Asset download requires a readable complete HTTP 200 response');
-      }
+      if (!response.ok || response.status !== 200 || response.type === 'opaque') throw downloadRefused(response);
       return response.body;
     }
     let body;
@@ -329,7 +355,7 @@ export function createModelCache({ store, shards = null, fetcher = globalThis.fe
       let started = 0;
       const fill = () => {
         while (ahead.length < readAhead && started < asset.chunks.length) {
-          const part = asset.chunks[started++], task = fetchVerifiedChunk(part, download, stop.signal);
+          const part = asset.chunks[started++], task = fetchVerifiedChunk(part, download, stop.signal, retryDelaysMs);
           task.catch(() => {}); // surfaced where it is awaited; a later chunk must not become an unhandled rejection
           ahead.push(task);
         }
