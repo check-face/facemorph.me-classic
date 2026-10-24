@@ -1,6 +1,6 @@
 ## A note about the facemorph.me API
 
-The current facemorph.me API is now scheduled to retire on **October 25, 2026 (AEST)**.
+The current facemorph.me API is now scheduled to retire on **November 1, 2026 (AEST)**.
 
 We have pushed this back from the original June date. Part of that is popular demand — a lot of people asked us for more time — and part of it is that we want to properly sit with the feedback we have had rather than rush the change. We would rather move slowly and get it right.
 
@@ -27,11 +27,11 @@ For some local checkface or facemorph workflows, **ComfyUI** may also be useful.
 ---
 
 #### Is facemorph.me shutting down?
-No. facemorph.me is expected to stay up. The part scheduled to retire on **October 25, 2026 (AEST)** is the current API and backend in their current form.
+No. facemorph.me is expected to stay up. The part scheduled to retire on **November 1, 2026 (AEST)** is the current API and backend in their current form.
 
 ---
 
-#### What is changing on October 25, 2026?
+#### What is changing on November 1, 2026?
 That is the current target date for retiring the API in its current form. We moved it back from June to give the feedback we received proper consideration. It is not a promise that the whole site disappears on that day.
 
 ---

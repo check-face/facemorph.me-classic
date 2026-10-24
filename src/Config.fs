@@ -15,7 +15,7 @@ let canonicalBaseUrl = "https://facemorph.me"
 let oEmbedApiEndpoint = canonicalBaseUrl + "/oembed.json"
 let contactEmail = "checkfaceml@gmail.com"
 let githubRepo = "check-face/facemorph.me"
-let apiTransitionDateLabel = "October 25, 2026 (AEST)"
+let apiTransitionDateLabel = "November 1, 2026 (AEST)"
 
 let defaultTextValue = "hello"
 let defaultNumericSeed = 389u // 389 is one of the seeds featured in the stylegan2 paper

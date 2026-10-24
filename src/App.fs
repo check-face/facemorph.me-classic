@@ -414,7 +414,7 @@ let ThemedApp children =
     ]
 
 // Version the key when the notice changes so a new announcement is shown again.
-let retirementDismissalKey = "facemorph-retirement-dismissed-2026-10-25-v2-next-experience"
+let retirementDismissalKey = "facemorph-retirement-dismissed-2026-11-01-v3-next-experience"
 
 [<ReactComponent>]
 let RenderHome (state:State) (dispatch: Msg -> unit) =
