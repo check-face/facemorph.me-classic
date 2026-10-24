@@ -554,3 +554,47 @@ test('the runtime mirror applies only to same-origin runtime files on a facemorp
   assert.equal(runtimeMirror(page('https://facemorph.me.evil.example'))('https://facemorph.me.evil.example/runtime/x'), undefined);
   assert.equal(runtimeMirror(undefined)('https://next.facemorph.me/runtime/x'), undefined);
 });
+// fm-vf9l (device lab, 24 October): a silent connection held an encoder shard for 106 s and only the asset deadline
+// would have ended it, failing the download. These run against a real local server whose fault switch goes quiet.
+async function quietServer(answer) {
+  const { createServer } = await import('node:http');
+  const seen = [], held = new Set();
+  const server = createServer((request, response) => {
+    seen.push(request.url); held.add(response);
+    answer(request.url, seen.filter(url => url.split('?')[0] === request.url.split('?')[0]).length, response);
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  return { seen, fetcher: (url, init) => fetch(base + new URL(url).pathname + new URL(url).search, init),
+    close: () => { for (const response of held) response.destroy(); server.close(); } };
+}
+test('a chunk whose connection goes silent mid-body is asked again on a fresh request and the model arrives', async () => {
+  const parts = [randomBytes(4096), randomBytes(4096), randomBytes(4096)];
+  const server = await quietServer((url, nth, response) => {
+    const i = Number(url.split('?')[0].split('-')[1]);
+    response.writeHead(200, { 'Content-Length': parts[i].length });
+    if (i === 1 && nth === 1) response.write(parts[i].subarray(0, 10)); // then nothing, and no reset
+    else response.end(parts[i]);
+  });
+  try {
+    const cache = createModelCache({ ...fixture().options, fetcher: server.fetcher, stallMs: 150, retryDelaysMs: [0] });
+    const handle = await cache.acquire(chunkAsset(parts));
+    assert.deepEqual([...new Uint8Array(await (await handle.open()).arrayBuffer())], [...joined(parts)]);
+    assert.deepEqual(server.seen.filter(url => url.startsWith('/chunk-1')), ['/chunk-1', '/chunk-1?retry=1']);
+  } finally { server.close(); }
+});
+test('a chunk that stays silent on every try fails with a stall, not a timeout of the whole asset', async () => {
+  const server = await quietServer((url, nth, response) => { response.writeHead(200); }); // headers, then silence
+  try {
+    const cache = createModelCache({ ...fixture().options, fetcher: server.fetcher, stallMs: 100, retryDelaysMs: [0], timeoutMs: 60000 });
+    await assert.rejects(cache.acquire(chunkAsset(pieces(2))), /stopped receiving data/);
+    assert.equal(server.seen.filter(url => url.startsWith('/chunk-0')).length, 2, 'first try plus one per configured delay');
+  } finally { server.close(); }
+});
+test('a slow but steady download outlasts the asset deadline: the deadline counts silence, not size', async () => {
+  const parts = pieces(6);
+  const f = fixture(url => new Promise(resolve => setTimeout(() => resolve(new Response(parts[Number(url.split('-')[1])])), 40)));
+  const cache = createModelCache({ ...f.options, readAhead: 1, timeoutMs: 100 }); // six chunks take about 240 ms
+  const handle = await cache.acquire(chunkAsset(parts));
+  assert.deepEqual([...new Uint8Array(await (await handle.open()).arrayBuffer())], [...joined(parts)]);
+});
