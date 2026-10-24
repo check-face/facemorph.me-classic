@@ -8,7 +8,9 @@ env:
 on:
   push:
     branches: [ master ]
+  # Previews only for changes aimed at the legacy production branch; the self-host branch never deploys.
   pull_request:
+    branches: [ master ]
 
 jobs:
   build:

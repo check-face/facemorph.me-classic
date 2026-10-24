@@ -5,12 +5,12 @@ seed/text faces, saved latents, photo encoding, morph frames, GIF/WebP/MP4 and l
 previews. MongoDB stores saved GUIDs; Docker volumes preserve models and media.
 The newer browser-inference site is a separate application.
 
-The bundled UI is built from historical commit
+The bundled UI is the original application from historical commit
 `0abb215f27b16e17e3919cf78b616b6ae4998a5d` plus the
-[recorded overlay](frontend-overlay/README.md). The current candidate frontend
-at `next.facemorph.me` performs inference locally and does **not** use this API.
-Checking out the candidate branch below retrieves the self-host packaging;
-Docker separately builds that pinned historical UI.
+[recorded overlay](frontend-overlay/README.md). It ships prebuilt in
+[`frontend/`](frontend/README.md), checked against a pinned SHA-256, so a build needs no .NET,
+npm or second clone; its source is vendored beside it for an opt-in rebuild. The current
+candidate frontend at `next.facemorph.me` performs inference locally and does **not** use this API.
 
 ## NVIDIA GPU quickstart (Linux)
 
@@ -28,8 +28,8 @@ Restarting Docker can interrupt other containers. Your host needs a driver
 compatible with CUDA 12.8 (Linux driver 570 or newer), an NVIDIA GPU supported by
 PyTorch's CUDA 12.8 wheels, and sufficient free VRAM. Start with an 8 GB GPU,
 8 GiB system RAM and 30 GiB free disk; leave room for generated media. The first
-build downloads dependencies and compiles dlib/the original UI; allow several
-minutes, longer on a small machine. No host Python, .NET SDK or CUDA toolkit is
+build downloads dependencies and compiles dlib; allow several minutes, longer on a
+small machine. No host Python, .NET SDK or CUDA toolkit is
 needed. NVIDIA drivers and the Container Toolkit remain host-installed.
 
 Review the model/source terms below, then:
@@ -176,9 +176,14 @@ survive restart. Long-morph unit checks cover both 199 and 200 frames with bound
 live image buffers. See [candidate CI runs](https://github.com/check-face/facemorph.me-classic/actions/workflows/self-host-build.yml)
 for the tested commit and complete Linux build/inference logs.
 
-Python/Torch/direct dependencies and source revisions are pinned. Base-image
-digests, complete dependency hashes, distribution SBOM and broader platform
-qualification remain release work. Linux arm64 and amd64 are the CPU test platforms. GPU builds use CUDA 12.8;
+The build inputs are frozen: every base image is pinned by digest
+(`python3 ../scripts/check-pins.py` fails on a floating one), all Python dependencies are
+hash-locked per torch index ([`requirements-cpu.lock`](requirements-cpu.lock),
+[`requirements-cu128.lock`](requirements-cu128.lock); how they were made is in
+[`lock-requirements.sh`](lock-requirements.sh)), the NVlabs StyleGAN2-ADA source is fetched
+by commit and SHA-256, and the UI is the hash-pinned bundle. Debian packages still come from
+the image's apt sources, and a distribution SBOM and broader platform qualification remain
+release work. Linux arm64 and amd64 are the CPU test platforms. GPU builds use CUDA 12.8;
 see the [GPU validation record](validation/2026-10-10/gpu.json) for the hardware actually tested.
 
 For a GPU install, also run `docker compose exec -T api python smoke_gpu.py`.

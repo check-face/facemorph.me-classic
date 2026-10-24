@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "github": {
+    "enabled": false
+  },
+  "routes": [
+    { "src": "/.*", "continue": true, "headers": { "Cache-Control": "max-age=3600, s-maxage=86400" } },
+    { "src": "/index.html", "dest": "/api/server" },
+    { "src": "/", "dest": "/api/server" },
+    { "handle": "filesystem" },
+    { "src": "/.*", "dest": "/api/server" }
+  ],
+  "functions": {
+    "api/server.js": {
+      "includeFiles": "index.html"
+    }
+  }
+}
