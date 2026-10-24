@@ -1,14 +1,25 @@
 name: Self-host API compatibility
 on:
   push:
-    branches: ['candidate/self-host-api', 'candidate/self-host-validation-20260915', 'candidate/next-delivery-20260916']
-    paths: ['self-host/**', '.github/workflows/self-host*.yml']
+    branches: ['self-host', 'candidate/self-host-api', 'candidate/self-host-validation-20260915', 'candidate/next-delivery-20260916']
+    paths: ['self-host/**', 'scripts/check-pins.py', 'scripts/test_check_pins.py', '.github/workflows/self-host*.yml']
   pull_request:
-    paths: ['self-host/**', '.github/workflows/self-host*.yml']
+    paths: ['self-host/**', 'scripts/check-pins.py', 'scripts/test_check_pins.py', '.github/workflows/self-host*.yml']
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
+  # Frozen inputs: no floating base image, the vendored UI source is the pinned commit byte for byte, and
+  # the prebuilt bundle matches its pinned SHA-256.
+  pins:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest scripts/test_check_pins.py
+      - run: python3 scripts/check-pins.py self-host
+      - run: python3 self-host/frontend-overlay/verify-overlay.py
+      - run: cd self-host/frontend && sha256sum -c deploy-self-host.tar.gz.sha256
   inference:
     strategy:
       fail-fast: false

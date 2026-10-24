@@ -10,7 +10,9 @@ This pin is the historical API-backed frontend. The current candidate branch's
 not call this API. Updating the candidate UI does not update this compatibility
 shell; change the pin/overlay deliberately and qualify it independently.
 
-Apply the files under `source/` over that exact checkout. Keep `package-lock.json`
+That commit is vendored byte for byte at [`../frontend/source/`](../frontend/README.md) and checked by
+`python3 verify-overlay.py` against `../frontend/source.files.sha256`, so no clone is needed.
+Apply the files under `source/` over it. Keep `package-lock.json`
 and `.config/dotnet-tools.json` from the pinned source; the overlay changes no npm
 or Fable dependency versions. Do not copy the migration workspace wholesale:
 research outputs, models, private inputs and unfinished Next/desktop work are

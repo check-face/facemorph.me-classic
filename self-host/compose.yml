@@ -7,7 +7,7 @@ services:
       - models:/models
     entrypoint: [python, setup.py]
   db:
-    image: mongo:8.0.13
+    image: mongo:8.0.13@sha256:cf340b1e5283843c63eb12999922f20c463ae31285f746d30f05dcc21cd1d47c
     volumes:
       - database:/data/db
     healthcheck:

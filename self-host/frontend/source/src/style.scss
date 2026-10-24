@@ -1,0 +1,230 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+
+// set fonts for bulma
+$family-sans-serif: 'Roboto', 'Segoe UI', sans-serif;
+$family-secondary: 'Nunito', 'Segoe UI', sans-serif;
+$title-family: $family-secondary;
+
+$footer-background-color: #f5f5f5;
+$link: #2d6dd4; //improve contrast over footer
+
+@import "~bulma/bulma";
+$blue-light: hsl(209, 71%, 63%); // https://github.com/jloh/bulma-prefers-dark/issues/31
+$link-dark: $blue-light;
+@import "~bulma-prefers-dark/bulma-prefers-dark";
+@import "~react-advanced-cropper/dist/style.css";
+
+html {
+    overflow-x: auto;
+}
+
+.page-with-retirement-notice {
+    padding-bottom: 10rem;
+}
+
+.column {
+    text-align: center;
+}
+
+.content {
+    //bulma Content
+    h1, h2, h3, h4 {
+        font-family: $family-secondary;
+    }
+}
+
+.morph-content > :nth-child(1) {
+    grid-area: from;
+}
+
+
+.morph-content > :nth-child(2) {
+    grid-area: to;
+}
+
+.morph-content > :nth-child(3) {
+    grid-area: morph;
+    align-self: end;
+    margin-bottom: 1em;
+}
+
+
+.morph-content > :nth-child(4) {
+    grid-area: vid;
+
+    .morph-dummyImg {
+        display: none;
+    }
+
+    @supports (display: grid) {
+        display: grid; //use grid to place dummyImg behind video
+        .morph-dummyImg {
+            display: block;
+            opacity: 0;
+            z-index: -1;
+            margin: auto;
+        }
+        .morph-dummyImg, .morph-vid {
+            grid-row: 1;
+            grid-column: 1;
+        }
+    }
+}
+
+
+@media (min-width: 750px) {
+    .morph-content {
+        display: grid;
+        gap: 1em;
+        grid-template-areas:
+            "from to"
+            "morph morph"
+            "vid vid";
+    }
+}
+
+@media (min-width: 900px) {
+    .morph-content {
+        grid-template-areas:
+            "from morph to"
+            "vid vid vid";
+        grid-template-columns: auto min-content auto;
+    }
+}
+
+@media (min-width: 1000px) {
+    .morph-content {
+        grid-template-areas:
+            "from vid to"
+            "from morph to";
+        grid-template-columns: auto auto auto;
+    }
+}
+
+.app-footer > div > div {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 3em;
+
+    & a {
+        white-space: nowrap;
+    }
+
+    div {
+        flex-grow: 100
+    }
+
+    div:last-child {
+        flex-grow: 1;
+        text-align: center;
+    }
+}
+
+.retirement-notice {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1200;
+    padding: 0 1rem 1rem;
+    pointer-events: none;
+}
+
+.retirement-notice__content {
+    pointer-events: auto;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 1rem 1.5rem;
+    align-items: flex-start;
+    background: rgba(22, 25, 31, 0.94);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28);
+    border-radius: 1rem;
+    padding: 1rem 1.25rem;
+
+    a {
+        color: #fff;
+        text-decoration: underline;
+        text-underline-offset: 0.18em;
+    }
+}
+
+.retirement-notice__copy {
+    flex: 1 1 28rem;
+    text-align: left;
+
+    p {
+        margin: 0;
+        font-size: 1rem;
+        line-height: 1.5;
+    }
+
+    p + p {
+        margin-top: 0.4rem;
+        color: rgba(255, 255, 255, 0.88);
+    }
+}
+
+.retirement-notice__date {
+    font-size: 1.05rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.retirement-notice__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    align-items: center;
+
+    a {
+        font-size: 1rem;
+        line-height: 1.5;
+    }
+}
+
+@media (max-width: 700px) {
+    .page-with-retirement-notice {
+        padding-bottom: 14.5rem;
+    }
+
+    .retirement-notice__content {
+        padding: 0.9rem 1rem;
+    }
+
+    .retirement-notice__actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
+
+
+// Hide the focuswithin-child until focus or hover is within focuswithin-parent
+.focuswithin-parent .focuswithin-child {
+    transform-origin: top;
+    transform: rotateX(0);
+    opacity: 1;
+
+    transition: 0.3s;
+    transition-property: opacity, transform;
+}
+
+.focuswithin-parent:not(:focus-within):not(:hover) .focuswithin-child {
+    opacity: 0;
+    transform: rotateX(25deg);
+
+    @media (prefers-reduced-motion) {
+        // disable rotation transition when prefers reduced motion
+        transform: rotateX(0);
+    }
+}
+
+.face-cropper-stencil-overlay {
+    // background-color: orange;
+    background: url('public/cropper-stencil.svg') no-repeat center center fixed;
+    background-size: cover;
+}
