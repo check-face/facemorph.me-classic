@@ -114,6 +114,7 @@ export function start(env = globalThis) {
   started = true;
   try {
     try{visitKind=localStorage.getItem('facemorph-visit-v1')?'returning':'first';localStorage.setItem('facemorph-visit-v1','1');}catch{}
+    stat('visit', { visit: visitKind });
     gtag('consent', 'default', { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'granted' });
     gtag('js', new Date());
     gtag('set', 'user_properties', deviceProperties());
@@ -135,6 +136,12 @@ export function start(env = globalThis) {
     return true;
   } catch { return false; }
 }
+
+// Second, first-party sink for the changeover statistics (usage-stats.mjs), wired by the bridge so
+// this module stays import-free. It applies its own opt-outs and never throws into the product.
+let statsSink = () => {};
+export function setStatsSink(fn) { if (typeof fn === 'function') statsSink = fn; }
+function stat(kind, data) { try { statsSink(kind, data); } catch { /* never affects the product */ } }
 
 /** Registers what the running job knows that analytics does not (face and frame counts, inputs). */
 export function setJobContext(fn) { if (typeof fn === 'function') context = fn; }
@@ -165,14 +172,17 @@ export function jobFinished({ action, outcome, provider, elapsedMs, errorKind, e
   if(terminalSent)return;terminalSent=true;
   const extra = context();
   track('job_finish', { attempt_id:attemptId, action, outcome, route: provider, duration_ms: elapsedMs, error_kind: errorKind, error_stage: errorStage, ...extra });
+  stat('job', { action, route: provider, outcome, ms: elapsedMs });
+  if (action === 'morph' && outcome === 'completed' && extra?.frames) stat('frames', { n: extra.frames });
   if(outcome==='completed')milestone(action==='morph'?'video-ready':'generated-ready');
 
 }
 
 export function modelsDownloaded({ scope, outcome, sizeMb, durationMs }) {
   track('models_download', { scope, outcome, size_mb: sizeMb, duration_ms: durationMs });
+  if (outcome === 'completed' || outcome === undefined) stat('model_mb', { mb: sizeMb });
 }
-export function exported({ kind, method, outcome, durationMs, fallback }) { track('export', { export_kind: kind, method, outcome, duration_ms:durationMs });if(fallback)operationResult('fallback','completed',durationMs,{reason:'unsupported'}); }
+export function exported({ kind, method, outcome, durationMs, fallback }) { track('export', { export_kind: kind, method, outcome, duration_ms:durationMs });if(outcome==='completed'||outcome===undefined)stat('export',{kind,method});if(fallback)operationResult('fallback','completed',durationMs,{reason:'unsupported'}); }
 export function photoSelected({ outcome }) { track('photo_select', { action: 'photo', outcome }); }
 export function namesUsed({ outcome }) { track('names_use', { action: 'names', outcome }); }
 
@@ -184,7 +194,7 @@ export function inputKind(inputs = []) {
 }
 
 export function safeReferrer(value){try{const url=new URL(value);return /^https?:$/.test(url.protocol)?url.origin:'';}catch{return '';}}
-export function milestone(value){if(milestones.has(value))return;milestones.add(value);track('visit_milestone',{milestone:value,duration_ms:(globalThis.performance?.now?.()||0)-arrival});}
+export function milestone(value){if(milestones.has(value))return;milestones.add(value);const duration=(globalThis.performance?.now?.()||0)-arrival;track('visit_milestone',{milestone:value,duration_ms:duration});if(value==='generated-visible')stat('ttfr',{cache:visitKind==='returning'?'warm':'cold',ms:duration});}
 export function queuedRequest(id,depth){if(queued.has(id))return;queued.set(id,performance.now());track('queue_enter',{operation:'queue',queue_depth:depth});}
 export function cancelQueued(id){if(!queued.has(id))return;const began=queued.get(id);queued.delete(id);track('queue_finish',{operation:'queue',outcome:'cancelled',wait_ms:performance.now()-began,queue_depth:queued.size});}
 export function operationStarted(operation,extra={}){track('operation_start',{operation,...extra});}

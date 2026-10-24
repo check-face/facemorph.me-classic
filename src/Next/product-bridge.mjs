@@ -10,8 +10,10 @@ import {decode,encode} from './ProjectJson.fs.js';
 import {saveFile,shareFile,videoWriter} from './media.mjs';
 import {diagnostics,onJobEnd} from './reporting.mjs';
 import * as analytics from './analytics.mjs';
+import {record as recordUsage} from './usage-stats.mjs';
 import {rememberLast,readLast,rememberSession,readSession} from './last-result.mjs';
 onJobEnd(analytics.jobFinished);
+if(typeof recordUsage==='function')analytics.setStatsSink?.(recordUsage);
 // Start at load, not at the first event: a visit that does nothing is still a visit.
 analytics.start();analytics.observeVitals?.();
 import {labelFor,loadedBytes,createFrameCounter} from './stage-labels.mjs';
