@@ -2,9 +2,9 @@ name: Self-host API compatibility
 on:
   push:
     branches: ['self-host', 'candidate/self-host-api', 'candidate/self-host-validation-20260915', 'candidate/next-delivery-20260916']
-    paths: ['self-host/**', 'scripts/check-pins.py', 'scripts/test_check_pins.py', '.github/workflows/self-host*.yml']
+    paths: ['compose.yaml', 'self-host/**', 'scripts/check-pins.py', 'scripts/test_check_pins.py', '.github/workflows/self-host*.yml']
   pull_request:
-    paths: ['self-host/**', 'scripts/check-pins.py', 'scripts/test_check_pins.py', '.github/workflows/self-host*.yml']
+    paths: ['compose.yaml', 'self-host/**', 'scripts/check-pins.py', 'scripts/test_check_pins.py', '.github/workflows/self-host*.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -34,6 +34,11 @@ jobs:
     defaults:
       run:
         working-directory: self-host
+    env:
+      # The CPU CI lane pins the base file explicitly: a bare `docker compose` in
+      # self-host/ would find the repository-root compose.yaml, which includes the GPU
+      # overlay by default (the one-command CUDA entry point).
+      COMPOSE_FILE: compose.yml
     steps:
       - uses: actions/checkout@v4
       - name: Build CPU image locally; do not publish
@@ -48,6 +53,8 @@ jobs:
           docker compose exec -T api python test_original_cache.py
           docker compose exec -T api python test_adapter_cache.py
           docker compose exec -T api python test_runtime_device.py
+      - name: Setup terms gate and verified download regressions
+        run: docker compose exec -T api python test_setup.py
       - name: Real concurrent synthesis shares lossless originals
         run: docker compose exec -T api python smoke_original_cache.py --state /app/checkfacedata/original-smoke.json
       - name: Original UI assets and local sharing

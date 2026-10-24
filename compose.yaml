@@ -1,0 +1,12 @@
+# FaceMorph classic distribution - one-command quickstart entry point.
+#
+#   ACCEPT_MODEL_TERMS=yes docker compose up
+#
+# from the repository root. CUDA is the default (the gpu overlay is included); the CPU
+# override is `docker compose -f self-host/compose.yml up` (see self-host/README.md).
+# Services live in self-host/compose.yml; this file only sets the project name and the
+# default composition.
+name: facemorph
+include:
+  - path: self-host/compose.yml
+  - path: self-host/compose.gpu.yml

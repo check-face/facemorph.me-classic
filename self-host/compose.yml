@@ -1,8 +1,10 @@
+name: facemorph
 services:
   setup:
     build: .
-    profiles: [setup]
     user: "0:0"
+    environment:
+      ACCEPT_MODEL_TERMS: ${ACCEPT_MODEL_TERMS:-}
     volumes:
       - models:/models
     entrypoint: [python, setup.py]
@@ -20,6 +22,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      setup:
+        condition: service_completed_successfully
     environment:
       CHECKFACE_ORIGINAL_CACHE_BYTES: ${CHECKFACE_ORIGINAL_CACHE_BYTES:-10737418240}
       CHECKFACE_CPU_THREADS: ${CHECKFACE_CPU_THREADS:-auto}

@@ -17,6 +17,43 @@ def digest(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
+def verify_existing(target, expected_sha256):
+    """Refuse an existing file that does not match the pin; never overwrite it."""
+    if target.exists() and digest(target) != expected_sha256:
+        raise SystemExit('Existing model checksum mismatch; move it aside and retry. It was not loaded or overwritten.')
+
+
+def fetch_verified(url, expected_sha256, expected_bytes, target):
+    """Stream `url` to `target`, refusing anything that differs from the pin.
+
+    Writes to a .download temporary and replaces the target atomically only after the
+    exact byte count and SHA-256 match. Returns the number of bytes downloaded (0 when
+    the verified file already existed and was reused).
+    """
+    verify_existing(target, expected_sha256)
+    if target.exists():
+        return 0
+    downloaded = 0
+    temporary = target.with_suffix('.download')
+    try:
+        sha, size = hashlib.sha256(), 0
+        with urllib.request.urlopen(url, timeout=120) as source, temporary.open('wb') as output:
+            while chunk := source.read(1024 * 1024):
+                size += len(chunk)
+                if size > expected_bytes:
+                    raise RuntimeError('Download exceeds pinned model size')
+                sha.update(chunk)
+                output.write(chunk)
+        if size != expected_bytes or sha.hexdigest() != expected_sha256:
+            raise RuntimeError('Official download differs from pinned source; no model installed')
+        temporary.chmod(0o644)
+        temporary.replace(target)
+        downloaded = size
+    finally:
+        temporary.unlink(missing_ok=True)
+    return downloaded
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--accept-research-license', action='store_true', help='Confirm you reviewed NVIDIA research/evaluation-only terms and your use is permitted')
@@ -26,26 +63,8 @@ def main():
         parser.error('Read README licensing links first; permitted research/evaluation setup requires --accept-research-license')
     args.directory.mkdir(parents=True, exist_ok=True)
     target = args.directory / MODEL_NAME
-    if target.exists():
-        if digest(target) != SOURCE_SHA256:
-            raise SystemExit('Existing model checksum mismatch; move it aside and retry. It was not loaded or overwritten.')
-    else:
-        temporary = target.with_suffix('.download')
-        try:
-            sha, size = hashlib.sha256(), 0
-            with urllib.request.urlopen(SOURCE_URL, timeout=120) as source, temporary.open('wb') as output:
-                while chunk := source.read(1024 * 1024):
-                    size += len(chunk)
-                    if size > SOURCE_BYTES:
-                        raise RuntimeError('Download exceeds pinned model size')
-                    sha.update(chunk)
-                    output.write(chunk)
-            if size != SOURCE_BYTES or sha.hexdigest() != SOURCE_SHA256:
-                raise RuntimeError('Official download differs from pinned source; no model installed')
-            temporary.chmod(0o644)
-            temporary.replace(target)
-        finally:
-            temporary.unlink(missing_ok=True)
+    downloaded = fetch_verified(SOURCE_URL, SOURCE_SHA256, SOURCE_BYTES, target)
+    print(f'downloaded {downloaded} bytes' if downloaded else f'reused verified {target}')
     (args.directory / 'provenance.json').write_text(json.dumps({
         'source_url': SOURCE_URL, 'source_sha256': SOURCE_SHA256, 'source_bytes': SOURCE_BYTES,
         'converter': 'NVlabs/stylegan2-ada-pytorch legacy.py', 'converter_revision': STYLEGAN_REV,

@@ -35,21 +35,22 @@ needed. NVIDIA drivers and the Container Toolkit remain host-installed.
 Review the model/source terms below, then:
 
 ```sh
-git clone --branch candidate/next-delivery-20260916 https://github.com/check-face/facemorph.me-classic.git
-cd facemorph.me/self-host
-export COMPOSE_FILE=compose.yml:compose.gpu.yml
-docker compose build
-docker compose run --rm setup --accept-research-license
-docker compose up -d --wait --wait-timeout 300 api
-curl --fail http://localhost:8080/healthz
-curl --fail 'http://localhost:8080/api/face/?seed=0&dim=512' --output face.jpg
+git clone --branch self-host https://github.com/check-face/facemorph.me-classic.git facemorph.me
+cd facemorph.me
+ACCEPT_MODEL_TERMS=yes docker compose up
 ```
 
-Open **http://localhost:8080** for the original UI. `/healthz` must report
-`"provider":"cuda"` and your GPU name. GPU mode fails startup if CUDA cannot be
-used; it never silently selects CPU. Setup downloads about 1.7 GB of original
-model assets from their authors, checks byte counts and SHA-256 hashes, and reuses
-verified files on repeat runs. No service account or API key is needed.
+That single command builds, downloads and verifies the model assets, and starts the
+API. When it is healthy it logs `Serving on http://localhost:8080`; open
+**http://localhost:8080** for the original UI. To acknowledge the terms once per
+shell instead of per command, `export ACCEPT_MODEL_TERMS=yes` first. Stopping with
+Ctrl-C and running `ACCEPT_MODEL_TERMS=yes docker compose up` again resumes: setup
+reuses verified files and replaces anything interrupted or corrupt.
+
+`/healthz` must report `"provider":"cuda"` and your GPU name. GPU mode fails startup
+if CUDA cannot be used; it never silently selects CPU. Setup downloads about 1.7 GB
+of original model assets from their authors, checks byte counts and SHA-256 hashes,
+and reuses verified files on repeat runs. No service account or API key is needed.
 
 The generator and e4e photo encoder execute on CUDA; face alignment and FFmpeg
 remain on CPU. This uses NVIDIA's pinned PyTorch model converter and PyTorch CUDA
@@ -65,9 +66,15 @@ or GPU UUID from `nvidia-smi`). Do not specify both `count` and `device_ids`.
 
 ## CPU alternative
 
-Use the same checkout and setup commands with `unset COMPOSE_FILE` instead of the
-GPU override. The default Compose file builds CPU PyTorch; no NVIDIA driver or
-GPU is needed. CPU generation is slower, especially long animations. CPU Linux
+Run the same checkout without the GPU overlay (the root `compose.yaml` includes it by
+default, so point Compose at the base file explicitly):
+
+```sh
+ACCEPT_MODEL_TERMS=yes docker compose -f self-host/compose.yml up
+```
+
+The default Compose file builds CPU PyTorch; no NVIDIA driver or GPU is needed.
+CPU generation is slower, especially long animations. CPU Linux
 amd64 and arm64 have been qualified; GPU qualification is recorded below. Do not
 assume that every NVIDIA architecture, Jetson, macOS or Windows native Docker has
 been tested. WSL2 users need working NVIDIA GPU passthrough into Docker first.
@@ -75,8 +82,9 @@ been tested. WSL2 users need working NVIDIA GPU passthrough into Docker first.
 ## Use and manage it
 
 [API reference](../docs/api.md) documents parameters, defaults and responses.
-Keep `COMPOSE_FILE` exported in each shell used to manage the GPU installation
-(or supply `-f compose.yml -f compose.gpu.yml` to every Compose command).
+Managing commands work from the repository root with the same composition as `up`:
+the CUDA default is whatever `docker compose` resolves from the root `compose.yaml`,
+and a CPU installation uses `-f self-host/compose.yml` on every Compose command.
 
 ```sh
 curl --fail 'http://localhost:8080/api/hashdata/?value=hello'
@@ -189,7 +197,8 @@ see the [GPU validation record](validation/2026-10-10/gpu.json) for the hardware
 For a GPU install, also run `docker compose exec -T api python smoke_gpu.py`.
 It checks CUDA passthrough and an uncached image generated over HTTP.
 To run the complete local contract, media, photo and restart suite, use
-`./verify.sh` after starting the API. Keep `COMPOSE_FILE` set for GPU mode.
+`./verify.sh` after starting the API. It resolves the same composition as your `up`
+command (root `compose.yaml` for CUDA, `-f self-host/compose.yml` for CPU).
 
 ## Model and source terms
 

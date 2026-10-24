@@ -1074,5 +1074,6 @@ if __name__ == '__main__':
     thread = threading.Thread(target=worker, daemon=True)
     thread.start()
     start_http_server(int(os.getenv('METRICS_PORT', '8000')))
+    print('Serving on http://localhost:8080', flush=True)
     serve(app, host='0.0.0.0', port=int(os.getenv('API_PORT', '8080')), threads=GENERATION_CAPACITY * 2,
           connection_limit=max(64, GENERATION_CAPACITY * 4), channel_timeout=30, max_request_body_size=16 * 1024 * 1024)

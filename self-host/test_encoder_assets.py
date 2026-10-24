@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from encoder_assets import ASSETS, verified_asset
-from prepare_encoder import download_asset
+from prepare_encoder import download_entry
 
 class AssetTests(unittest.TestCase):
     def test_existing_corrupt_asset_is_rejected_and_preserved_without_network(self):
@@ -14,7 +14,7 @@ class AssetTests(unittest.TestCase):
             root=Path(directory); name='e4e_ffhq_encode.pt'; target=root/name
             target.write_bytes(b'corrupt model')
             with patch('urllib.request.urlopen') as network:
-                with self.assertRaises(ValueError): download_asset(name,root)
+                with self.assertRaises(ValueError): download_entry(ASSETS[name], name, root)
                 network.assert_not_called()
             self.assertEqual(target.read_bytes(),b'corrupt model')
 

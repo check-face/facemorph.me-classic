@@ -9,12 +9,19 @@ import urllib.request
 
 from encoder_assets import ASSETS, verified_asset
 
-def download_asset(name, directory):
-    entry = ASSETS[name]
+def download_entry(entry, name, directory):
+    """Download and verify one asset described by `entry` (url/sha256/bytes[/compression]).
+
+    Reuses a verified existing file, refuses an existing mismatch (never overwrites),
+    streams to a .download temporary and replaces the target atomically. Returns the
+    number of bytes downloaded (0 when reused).
+    """
     target = directory / name
     if target.exists():
-        verified_asset(name, directory)  # Refuse an existing mismatch; never overwrite it.
-        return
+        if target.stat().st_size != entry['bytes'] or hashlib.file_digest(target.open('rb'), 'sha256').hexdigest() != entry['sha256']:
+            raise ValueError(f'Unverified encoder asset: {name}; move it aside and retry. It was not overwritten.')
+        return 0
+    downloaded = 0
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(prefix=name+'.', suffix='.download', dir=directory, delete=False) as output:
@@ -33,9 +40,12 @@ def download_asset(name, directory):
                 raise ValueError(f'Official download did not match deployed checksum: {name}')
         temporary.chmod(0o644)
         temporary.replace(target)
+        downloaded = total
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
+    return downloaded
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -46,7 +56,8 @@ def main():
         parser.error('Read the e4e/FFHQ and dlib/iBUG model terms, then pass --accept-research-license for permitted use')
     args.directory.mkdir(parents=True, exist_ok=True)
     for name in ASSETS:
-        download_asset(name, args.directory)
+        downloaded = download_entry(ASSETS[name], name, args.directory)
+        print(f'downloaded {downloaded} bytes' if downloaded else f'reused verified {name}', flush=True)
         print(f'Verified {name}: {ASSETS[name]["sha256"]}', flush=True)
     (args.directory/'encoder-provenance.json').write_text(json.dumps({
         'assets': ASSETS,

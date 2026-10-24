@@ -1,5 +1,6 @@
 #!/bin/sh
-# Run against your own started Compose project. Export COMPOSE_FILE for GPU mode.
+# Run against your own started Compose project: it resolves the same composition as your
+# `up` (root compose.yaml for CUDA, `-f self-host/compose.yml` for CPU).
 set -eu
 cd "$(dirname "$0")"
 docker compose exec -T api python test_runtime_device.py
