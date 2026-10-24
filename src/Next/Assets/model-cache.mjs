@@ -54,14 +54,14 @@ const pauseFor = (ms, signal) => new Promise((resolve, reject) => {
   const timer = setTimeout(() => { signal?.removeEventListener('abort', done); resolve(); }, ms);
   signal?.addEventListener('abort', done, { once: true });
 });
-async function fetchVerifiedChunk(part, download, signal, delays = CHUNK_RETRY_DELAYS_MS, mirrorOf = () => undefined) {
+async function fetchVerifiedChunk(part, download, signal, delays = CHUNK_RETRY_DELAYS_MS, mirrorOf = () => undefined, stallMs = CHUNK_STALL_MS) {
   const mirror = mirrorOf(part.url);
   let first;
   for (let attempt = 0; ; attempt++) {
     const fromMirror = Boolean(mirror) && attempt % 2 === 1;
     try {
       const url = fromMirror ? mirror : attempt ? Object.assign(new URL(part.url), { search: `retry=${attempt}` }).href : part.url;
-      return await fetchChunkOnce(attempt ? { ...part, url } : part, download, signal);
+      return await fetchChunkOnce(attempt ? { ...part, url } : part, download, signal, stallMs);
     } catch (error) {
       check(signal);
       first ??= error; // the site's own answer is the one worth reporting
@@ -79,21 +79,40 @@ export function runtimeMirror(location = globalThis.location) {
     return RUNTIME_MIRROR + target.pathname;
   };
 }
+// 24 October (fm-vf9l, device lab): a connection that goes silent without a reset (a laptop waking from sleep, a
+// changed network, a dead NAT mapping) never fails a fetch. An encoder shard sat 106 s without a byte and nothing on
+// the page noticed; only the asset deadline would have ended it, and that fails the whole download. An attempt that
+// receives nothing for `stallMs` is abandoned and asked again like a dropped connection, so the next try opens a
+// fresh request (and every other try goes to the mirror).
+export const CHUNK_STALL_MS = 30000;
+const stalledError = () => Object.assign(new Error('The model download stopped receiving data. Parts already downloaded are kept: try again in a few minutes.'), { transient: true, stalled: true });
 /** One pinned chunk, fully read into a buffer of exactly its declared size and checked by the platform digest. */
-async function fetchChunkOnce(part, download, signal) {
-  const body = await download(part, signal);
-  if (!body) throw new Error('Asset response has no readable body');
-  const out = new Uint8Array(part.size), reader = body.getReader();
+async function fetchChunkOnce(part, download, signal, stallMs = CHUNK_STALL_MS) {
+  const attempt = new AbortController(), stall = stalledError();
+  const relay = () => attempt.abort(signal.reason || aborted());
+  if (signal?.aborted) relay(); else signal?.addEventListener('abort', relay, { once: true });
+  let timer;
+  const quiet = () => { clearTimeout(timer); timer = setTimeout(() => attempt.abort(stall), stallMs); };
+  const out = new Uint8Array(part.size);
   let at = 0;
   try {
-    for (;;) {
-      const { value, done } = await reader.read();
-      check(signal);
-      if (done) break;
-      if (at + value.byteLength > part.size) throw new Error('Asset exceeds declared size');
-      out.set(value, at); at += value.byteLength;
-    }
-  } catch (error) { void reader.cancel(error).catch(() => {}); throw error; }
+    quiet();
+    const body = await download(part, attempt.signal);
+    if (!body) throw new Error('Asset response has no readable body');
+    const reader = body.getReader();
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        check(attempt.signal); quiet();
+        if (done) break;
+        if (at + value.byteLength > part.size) throw new Error('Asset exceeds declared size');
+        out.set(value, at); at += value.byteLength;
+      }
+    } catch (error) { void reader.cancel(error).catch(() => {}); throw error; }
+  } catch (error) {
+    check(signal); // the caller's own cancellation wins over anything below
+    throw attempt.signal.reason === stall ? stall : error;
+  } finally { clearTimeout(timer); signal?.removeEventListener('abort', relay); attempt.abort(aborted()); } // released either way
   if (at !== part.size) throw new Error('Asset integrity mismatch');
   const digest = hex(await globalThis.crypto.subtle.digest('SHA-256', out));
   check(signal);
@@ -183,13 +202,16 @@ export function createRecordAccess(store) {
  * Observers receive hashes/status only (no URLs or authentication material).
  */
 export function createModelCache({ store, shards = null, fetcher = globalThis.fetch, locks,
-  timeoutMs = 300000, maxConcurrent = 2, readAhead = 2, retryDelaysMs = CHUNK_RETRY_DELAYS_MS, mirrorOf = () => undefined, report = () => {} }) {
-  if (!store || !Number.isFinite(timeoutMs) || timeoutMs <= 0 || !Number.isInteger(maxConcurrent) || maxConcurrent < 1
+  timeoutMs = 300000, stallMs = CHUNK_STALL_MS, maxConcurrent = 2, readAhead = 2, retryDelaysMs = CHUNK_RETRY_DELAYS_MS, mirrorOf = () => undefined, report = () => {} }) {
+  if (!store || !Number.isFinite(timeoutMs) || timeoutMs <= 0 || !Number.isFinite(stallMs) || stallMs <= 0 || !Number.isInteger(maxConcurrent) || maxConcurrent < 1
     || !Number.isInteger(readAhead) || readAhead < 1 || readAhead > 8)
     throw new TypeError('Invalid cache settings');
   const pending = new Map(), queue = [];
   let active = 0;
-  const emit = event => { try { report(event); } catch { /* observers cannot break storage */ } };
+  const emit = event => {
+    if (event.status === 'progress') pending.get(event.sha256)?.alive?.(); // the deadline counts silence, not size
+    try { report(event); } catch { /* observers cannot break storage */ }
+  };
   const records = createRecordAccess(store);
   async function fetchBody(part, signal) {
     const response = await fetcher(part.url, { signal, credentials: 'omit', cache: 'default', mode: 'cors' });
@@ -275,7 +297,7 @@ export function createModelCache({ store, shards = null, fetcher = globalThis.fe
     signal.addEventListener('abort', relay, { once: true });
     try {
       await eachUnit(missing, readAhead, async unit => {
-        try { await commitUnit(asset, unit, await fetchVerifiedChunk(unit, fetchBody, stop.signal, retryDelaysMs, mirrorOf)); }
+        try { await commitUnit(asset, unit, await fetchVerifiedChunk(unit, fetchBody, stop.signal, retryDelaysMs, mirrorOf, stallMs)); }
         catch (error) { stop.abort(error); throw error; }
         loaded += unit.size;
         emit({ status: 'progress', sha256: asset.sha256, loaded, bytes: asset.size });
@@ -301,7 +323,7 @@ export function createModelCache({ store, shards = null, fetcher = globalThis.fe
           const again = await shards.read(unit.sha256, unit.size); // another tab may have repaired it
           if (again && await platformHex(again) === unit.sha256) return again;
           await shards.remove(unit.sha256);
-          const fresh = await fetchVerifiedChunk(unit, fetchBody, AbortSignal.timeout(timeoutMs), retryDelaysMs, mirrorOf);
+          const fresh = await fetchVerifiedChunk(unit, fetchBody, AbortSignal.timeout(timeoutMs), retryDelaysMs, mirrorOf, stallMs);
           await commitUnit(asset, unit, fresh).catch(() => {}); // the verified bytes are served even if saving fails
           return fresh;
         });
@@ -373,7 +395,7 @@ export function createModelCache({ store, shards = null, fetcher = globalThis.fe
       let started = 0;
       const fill = () => {
         while (ahead.length < readAhead && started < asset.chunks.length) {
-          const part = asset.chunks[started++], task = fetchVerifiedChunk(part, download, stop.signal, retryDelaysMs, mirrorOf);
+          const part = asset.chunks[started++], task = fetchVerifiedChunk(part, download, stop.signal, retryDelaysMs, mirrorOf, stallMs);
           task.catch(() => {}); // surfaced where it is awaited; a later chunk must not become an unhandled rejection
           ahead.push(task);
         }
@@ -384,7 +406,7 @@ export function createModelCache({ store, shards = null, fetcher = globalThis.fe
             check(signal); fill();
             if (!ahead.length) { release(); controller.close(); return; }
             const chunk = await ahead.shift();
-            check(signal); fill();
+            check(signal); fill(); pending.get(asset.sha256)?.alive?.();
             // Network-sized views, not the whole 16 MiB buffer: Firefox failed the first read-ahead build with a
             // NetworkError (caught by the pre-deploy engine matrix), and the progress bar would move in 16 MiB
             // steps. Views share the buffer, so this copies nothing.
@@ -501,11 +523,18 @@ export function createModelCache({ store, shards = null, fetcher = globalThis.fe
       const controller = new AbortController();
       task = { asset, controller, waiters: 0 };
       const current = task;
-      const timer = setTimeout(() => controller.abort(new DOMException('Asset acquisition timed out', 'TimeoutError')), timeoutMs);
+      // The deadline is for an asset that has stopped arriving, not one that is big on a slow link: it bounds the
+      // wait for a slot or another tab's lock as before, then restarts when the work starts and on every progress
+      // tick. A wall-clock 300 s made the 158 MB WebGPU prefix unobtainable below 4.2 Mbit/s and the 124 MB CPU
+      // model below 3.3 Mbit/s (fm-vf9l).
+      let timer;
+      task.alive = () => { clearTimeout(timer); timer = setTimeout(() => controller.abort(new DOMException('Asset acquisition timed out', 'TimeoutError')), timeoutMs); };
+      task.alive();
+      const run = () => { current.alive?.(); return ensure(asset, controller.signal); };
       task.promise = schedule(() => locks?.request
-        ? locks.request(`${MODEL_CACHE_NAME}:${asset.sha256}`, { signal: controller.signal }, () => ensure(asset, controller.signal))
-        : ensure(asset, controller.signal), controller.signal).finally(() => {
-        clearTimeout(timer); if (pending.get(asset.sha256) === current) pending.delete(asset.sha256);
+        ? locks.request(`${MODEL_CACHE_NAME}:${asset.sha256}`, { signal: controller.signal }, run)
+        : run(), controller.signal).finally(() => {
+        clearTimeout(timer); current.alive = undefined; if (pending.get(asset.sha256) === current) pending.delete(asset.sha256);
       });
       pending.set(asset.sha256, task);
     }
