@@ -76,6 +76,20 @@ jobs:
       artifact_run: ${{ github.run_id }}
       artifact_name: next-site-${{ github.sha }}
       runtime_sha: d9e37e50a436e9fb7c0c7f973e70adee353c808f48c6a51fa5a9186f1c650a5c
+  # Operator rule (24 October 2026): deploys to next.facemorph.me only after the end-to-end journeys
+  # pass against this exact artifact on eris (WebGPU and CPU) and the USB Huawei P30 Pro (WebGPU and
+  # CPU). Runs on the self-hosted runner eris-device-lab (facemorph.me repo, tools/device-lab).
+  device-lab:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: artifact
+    uses: check-face/facemorph.me/.github/workflows/device-lab.yml@main
+    permissions:
+      contents: read
+      actions: read
+    with:
+      artifact_run: ${{ github.run_id }}
+      artifact_name: next-site-${{ github.sha }}
+      runtime_sha: d9e37e50a436e9fb7c0c7f973e70adee353c808f48c6a51fa5a9186f1c650a5c
   compiled-ui:
     needs: artifact
     runs-on: ubuntu-24.04
@@ -139,7 +153,7 @@ jobs:
   # versions deploy <previous version>@100`, the previous version is in `wrangler deployments list`.
   deploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/candidate/next-delivery-20260916'
-    needs: [artifact, qualify, compiled-ui]
+    needs: [artifact, qualify, compiled-ui, device-lab]
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     concurrency:
@@ -218,3 +232,14 @@ jobs:
           failed=$(xargs -P 8 -I{} sh -c 'code=$(curl -s -o /dev/null -I --retry 3 --retry-all-errors -w "%{http_code}" "https://models.facemorph.me/{}"); [ "$code" = 200 ] || echo "$code {}"' < mirrored-files)
           [ -z "$failed" ] || { echo "$failed"; exit 1; }
           echo "$(wc -l < mirrored-files) runtime files held by models.facemorph.me"
+  # After the deploy: the same four cells against the live next.facemorph.me (operator, 24 October 2026).
+  device-lab-live:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/candidate/next-delivery-20260916'
+    needs: deploy
+    uses: check-face/facemorph.me/.github/workflows/device-lab.yml@main
+    permissions:
+      contents: read
+      actions: read
+    with:
+      url: https://next.facemorph.me/
+      label: live-after-deploy-${{ github.sha }}
