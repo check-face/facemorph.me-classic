@@ -34,11 +34,16 @@ needed. NVIDIA drivers and the Container Toolkit remain host-installed.
 
 Review the model/source terms below, then:
 
+<!-- readme-quickstart: begin. The README-is-the-test harness (fm-fy2.16) runs this block verbatim; its one
+variable is <canonical-url>, the repository URL (and branch) given here. -->
+
 ```sh
 git clone --branch self-host https://github.com/check-face/facemorph.me-classic.git facemorph.me
 cd facemorph.me
 ACCEPT_MODEL_TERMS=yes docker compose up
 ```
+
+<!-- readme-quickstart: end -->
 
 That single command builds, downloads and verifies the model assets, and starts the
 API. When it is healthy it logs `Serving on http://localhost:8080`; open

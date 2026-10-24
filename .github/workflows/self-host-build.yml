@@ -20,6 +20,29 @@ jobs:
       - run: python3 scripts/check-pins.py self-host
       - run: python3 self-host/frontend-overlay/verify-overlay.py
       - run: cd self-host/frontend && sha256sum -c deploy-self-host.tar.gz.sha256
+  gpu-absent:
+    # fm-6bj: the one-command quickstart on a host with no NVIDIA runtime (a hosted runner) fails clearly at the GPU
+    # reservation and never falls back to the CPU: the command exits non-zero, Docker names the missing device
+    # driver, and the api container never runs.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      ACCEPT_MODEL_TERMS: 'yes'
+    steps:
+      - uses: actions/checkout@v4
+      - name: The quickstart, verbatim, from the repository root
+        run: |
+          set +e
+          docker compose up --wait --wait-timeout 900 > quickstart.log 2>&1
+          rc=$?
+          set -e
+          tail -20 quickstart.log
+          test "$rc" -ne 0
+          grep -Ei 'could not select device driver|nvidia' quickstart.log
+          state=$(docker compose ps -a --format '{{.State}}' api)
+          echo "api container: $state"
+          test "$state" != running
+          ! docker compose logs api 2>/dev/null | grep -q '"provider":"cpu"'
   inference:
     strategy:
       fail-fast: false
