@@ -39,6 +39,9 @@ jobs:
       # self-host/ would find the repository-root compose.yaml, which includes the GPU
       # overlay by default (the one-command CUDA entry point).
       COMPOSE_FILE: compose.yml
+      # Research/evaluation CI acknowledges the model terms for the whole job: `up` runs the setup service again
+      # as the api's dependency, and setup refuses (exit 2) without an acknowledgement (fm-6bj).
+      ACCEPT_MODEL_TERMS: 'yes'
     steps:
       - uses: actions/checkout@v4
       - name: Build CPU image locally; do not publish
