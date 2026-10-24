@@ -523,16 +523,18 @@ export function createModelCache({ store, shards = null, fetcher = globalThis.fe
       const controller = new AbortController();
       task = { asset, controller, waiters: 0 };
       const current = task;
-      // The deadline is for an asset that has stopped arriving, not one that is big on a slow link: it starts when
-      // the work does (not while queued) and every progress tick restarts it. A wall-clock 300 s made the 158 MB
-      // WebGPU prefix unobtainable below 4.2 Mbit/s and the 124 MB CPU model below 3.3 Mbit/s (fm-vf9l).
+      // The deadline is for an asset that has stopped arriving, not one that is big on a slow link: it bounds the
+      // wait for a slot or another tab's lock as before, then restarts when the work starts and on every progress
+      // tick. A wall-clock 300 s made the 158 MB WebGPU prefix unobtainable below 4.2 Mbit/s and the 124 MB CPU
+      // model below 3.3 Mbit/s (fm-vf9l).
       let timer;
       task.alive = () => { clearTimeout(timer); timer = setTimeout(() => controller.abort(new DOMException('Asset acquisition timed out', 'TimeoutError')), timeoutMs); };
-      const run = () => { task.alive(); return ensure(asset, controller.signal); };
+      task.alive();
+      const run = () => { current.alive?.(); return ensure(asset, controller.signal); };
       task.promise = schedule(() => locks?.request
         ? locks.request(`${MODEL_CACHE_NAME}:${asset.sha256}`, { signal: controller.signal }, run)
         : run(), controller.signal).finally(() => {
-        clearTimeout(timer); task.alive = undefined; if (pending.get(asset.sha256) === current) pending.delete(asset.sha256);
+        clearTimeout(timer); current.alive = undefined; if (pending.get(asset.sha256) === current) pending.delete(asset.sha256);
       });
       pending.set(asset.sha256, task);
     }
