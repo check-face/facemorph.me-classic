@@ -7,6 +7,10 @@
 # Services live in self-host/compose.yml; this file only sets the project name and the
 # default composition.
 name: facemorph
+# One include whose path is a list: the two files merge as `-f compose.yml -f compose.gpu.yml` would. Two separate
+# includes that both define setup and api are a conflict on Compose v2 before overriding imports was allowed
+# ("services.setup conflicts with imported resource").
 include:
-  - path: self-host/compose.yml
-  - path: self-host/compose.gpu.yml
+  - path:
+      - self-host/compose.yml
+      - self-host/compose.gpu.yml

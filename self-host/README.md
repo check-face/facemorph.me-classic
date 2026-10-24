@@ -14,7 +14,7 @@ candidate frontend at `next.facemorph.me` performs inference locally and does **
 
 ## NVIDIA GPU quickstart (Linux)
 
-Install Git, Docker Engine with Compose v2, a current NVIDIA driver, and the
+Install Git, Docker Engine with Compose v2.20 or newer (`docker compose version`; the root compose.yaml uses `include`), a current NVIDIA driver, and the
 [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
 Follow NVIDIA's installation instructions for your distribution, including:
 
