@@ -1,14 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {clean, allowed, deviceProperties, inputKind, HOST, MEASUREMENT_ID} from './analytics.mjs';
+import {clean, allowed, deviceProperties, inputKind, HOSTS, MEASUREMENT_ID} from './analytics.mjs';
 
-const env = (over = {}) => ({location: {hostname: HOST, protocol: 'https:'}, navigator: {}, ...over});
+const env = (over = {}) => ({location: {hostname: HOSTS[0], protocol: 'https:'}, navigator: {}, ...over});
 
-test('only the production host runs analytics', () => {
+test('the candidate and promoted hosts run analytics', () => {
   assert.equal(allowed(env()), true);
-  for (const hostname of ['localhost', 'labs.facemorph.me', 'facemorph.me', 'tauri.localhost', 'next.facemorph.me.evil.test'])
+  assert.equal(allowed(env({location: {hostname: HOSTS[1], protocol: 'https:'}})), true, HOSTS[1]);
+  for (const hostname of ['localhost', 'labs.facemorph.me', 'tauri.localhost', 'next.facemorph.me.evil.test'])
     assert.equal(allowed(env({location: {hostname, protocol: 'https:'}})), false, hostname);
-  assert.equal(allowed(env({location: {hostname: HOST, protocol: 'http:'}})), false);
+  assert.equal(allowed(env({location: {hostname: HOSTS[0], protocol: 'http:'}})), false);
   assert.equal(allowed({}), false);
 });
 test('automation, Save-Data, GPC and DNT switch it off', () => {

@@ -825,7 +825,7 @@ let private setpointField (props:FieldProps) =
                 Mui.tooltip [tooltip.title "Browse names";tooltip.children (
                     Mui.iconButton [prop.className "next-adornment";prop.tabIndex -1;prop.ariaLabel "Browse names"
                                     iconButton.edge.end';iconButton.children (imageSearchIcon []);prop.onClick(fun _ -> props.OnBrowse())])]]]
-    let placeholder = match props.Item.mode with | "seed" -> "Just type anything" | "project" -> "" | _ -> "Just type anything"
+    let placeholder = match props.Item.mode with | "seed" -> "Any number from 0 to 4294967295" | "project" -> "" | _ -> "Just type anything"
     Mui.noSsr [
         Mui.menu [menu.anchorEl (anchorEl :?> IRefValue<Option<Element>>);menu.keepMounted true;menu.open' menuOpen;menu.onClose(fun _ -> setMenuOpen false)
                   menu.children [
@@ -845,6 +845,11 @@ let private setpointField (props:FieldProps) =
                 prop.className "focuswithin-parent"
                 textField.inputProps [
                     prop.style [style.textAlign.center]
+                    // Defect 5: the text is hashed exactly, so a phone keyboard must not
+                    // capitalise, correct or spell-check it, and nothing trims or normalises it.
+                    prop.custom("autocapitalize","off")
+                    prop.custom("autocorrect","off")
+                    prop.custom("spellcheck","false")
                     if props.Item.mode="seed" then prop.min 0.
                     if props.Item.mode="seed" then prop.max 4294967295.
                 ]
@@ -1156,9 +1161,9 @@ let private explainSection =
             Html.p "Yes. Drop a photo onto a face, tap an empty face, or open a face's mode menu and choose Upload image. Photos are processed on your device and never uploaded."]
         faq "What is next.facemorph.me?" [
             Html.p [Html.text "It's an experimental preview of the next facemorph.me. Instead of a server making your faces, everything happens here on your device. The ";Html.a [prop.href "https://facemorph.me";prop.text "classic site"];Html.text " still works as it always has while we test this one."]
-            Html.p [Html.text "The classic site's server and API are being retired. ";Html.a [prop.href "https://facemorph.me/retirement";prop.text "Here's why, and what's changing"];Html.text "."]]
+            Html.p [Html.text "The classic site's server and API are being retired, on a date the operator sets — there is no fixed shutdown date. Old results, GUIDs and share links will stop working and cannot be preserved, and nothing here depends on them. ";Html.a [prop.href "https://facemorph.me/retirement";prop.text "Here's why, and what's changing"];Html.text "."]]
         faq "Does anything leave my device?" [
-            Html.p "No. Your photos, the words you type and the faces you make stay here. The first visit downloads the face models, about 200 MB, plus about 1 GB more the first time you use a photo. They're saved on this device, so later visits don't download them again."
+            Html.p "No. Your photos, the words you type and the faces you make stay here. The first visit downloads the face models, and using your own photos downloads a photo encoder; the page shows each exact size before anything starts. They're saved on this device, so later visits don't download them again."
             Html.p "Completed generated faces are cached on this device when storage is available. Your last generated face can be restored on return; source photos are kept only in the current tab."
             Html.p "Two things are sent. Cookie-based usage analytics (see \"What do you count?\") go to Google Analytics. A debug report is sent only if you turn reporting on."]
         faq "What do you count?" [
@@ -1173,8 +1178,8 @@ let private explainSection =
         faq "Something went wrong. How do I tell you?" [
             Html.p [Html.a [prop.href (issueUrl "");prop.target "_blank";prop.rel "noopener";prop.text "Open an issue on GitHub"];Html.text " (the version and device are filled in for you), or email ";Html.a [prop.href "mailto:checkfaceml@gmail.com";prop.text "checkfaceml@gmail.com"];Html.text ". If you sent a debug report, include its reference."]]
         faq "Is there an API I can self-host?" [
-            Html.p [Html.text "Yes. The server source is at ";Html.a [prop.href "https://github.com/check-face/checkface";prop.text "github.com/check-face/checkface"];Html.text " and is documented at ";Html.a [prop.href "https://checkface.facemorph.me/api";prop.text "checkface.facemorph.me/api"];Html.text "."]
-            Html.p [Html.text "If you need a setup under your own control, self-hosting is the safest option. Bugs belong in a GitHub issue; for questions about the transition, email ";Html.a [prop.href "mailto:checkfaceml@gmail.com";prop.text "checkfaceml@gmail.com"];Html.text "."]]]]
+            Html.p "Not as a hosted service. The hosted API is retiring and will not be replaced: old result links and GUIDs will stop working and cannot be preserved. To run your own, the classic source repository's self-host section builds the original site locally with Docker Compose."
+            Html.p [Html.text "Questions about the transition are best in ";Html.a [prop.href (issueUrl "");prop.target "_blank";prop.rel "noopener";prop.text "a GitHub issue"];Html.text ", where the version and device details can be filled in for you."]]]]
 
 /// The debug area (U-09): processing mode and reporting live here, next to each other, where a
 /// tester looks for them. The mode select stays a native, keyboard-reachable element because
@@ -1200,12 +1205,16 @@ let view state dispatch = App.ThemedApp [
                    // it appends. Multiple files create one face per file, in drop order.
                    dispatch(Photos(None,photoFiles e)))
                prop.children [
-        Html.aside [prop.className "next-preview-strip";prop.custom("role","note");prop.ariaLabel "About this preview";prop.children [
-            Html.span [prop.className "next-preview-strip-lead";prop.children [Html.strong "Experimental preview";Html.text " of the next facemorph.me. Everything runs on your device."]]
-            Html.span [prop.className "next-preview-strip-links";prop.children [
-                Html.a [prop.href "https://facemorph.me";prop.text "Classic facemorph.me"]
-                Html.a [prop.href "https://facemorph.me/retirement";prop.text "Its server is retiring"]
-                Html.a [prop.href (issueUrl state.Route);prop.target "_blank";prop.rel "noopener";prop.text "Report an issue"]]]]]
+        // Preview chrome belongs to the candidate host (Config.isNextPreviewOrigin); the promoted
+        // site serves the same source without it, so cutover needs no source fork.
+        if isNextPreviewOrigin then (
+            Html.aside [prop.className "next-preview-strip";prop.custom("role","note");prop.ariaLabel "About this preview";prop.children [
+                Html.span [prop.className "next-preview-strip-lead";prop.children [Html.strong "Experimental preview";Html.text " of the next facemorph.me. Everything runs on your device."]]
+                Html.span [prop.className "next-preview-strip-links";prop.children [
+                    Html.a [prop.href "https://facemorph.me";prop.text "Classic facemorph.me"]
+                    Html.a [prop.href "https://facemorph.me/retirement";prop.text "Its server is retiring"]
+                    Html.a [prop.href (issueUrl state.Route);prop.target "_blank";prop.rel "noopener";prop.text "Report an issue"]]]]])
+        else Html.none
         match state.PhotoChoice with
         | Some choice ->
             let boxes:obj array=choice?boxes
@@ -1283,8 +1292,8 @@ let view state dispatch = App.ThemedApp [
         if isSlowDevice state then
             Html.div [prop.className "next-slow-route box";prop.custom("role","note");prop.children [
                 Html.p [Html.strong "Generating is slow on this device.";Html.text (if state.Route="cpu" then " No graphics acceleration qualified here, so it is running on the processor." else sprintf " It qualified the %s route, but this machine is still taking a long time per face." state.Route)]
-                Html.p "You can keep using the page while work is queued. Try a shorter morph, or compare available processing routes under More options → Advanced. A capable desktop browser may help if you are using a phone."
-                Html.p [Html.a [prop.href "https://github.com/check-face/facemorph.me/blob/candidate/next-delivery-20260916/desktop/README.md";prop.text "Desktop app capabilities and availability"]]]]
+                Html.p "You can keep using the page while work is queued. Try a shorter morph, or compare available processing routes under More options → Advanced."
+                Html.p "For long morphs, opening this same site on a computer with a recent browser is quicker — there is nothing to install."]]
         match state.Error with
         | Some message -> Html.div [prop.className "next-error box";prop.custom("role","alert");prop.children [
             Html.p message
@@ -1301,10 +1310,9 @@ let view state dispatch = App.ThemedApp [
                 if state.LastRun.IsSome then
                     Mui.button [button.variant.text;prop.className "next-error-retry";prop.onClick(fun _ -> dispatch Retry);button.children "Try again"]
                 Mui.button [button.variant.text;prop.onClick(fun _ -> dispatch DismissError);button.children "Dismiss"]]]
-            // The classic site still works everywhere it always did, while it is being retired.
-            Html.p [prop.className "next-error-classic";prop.children [
-                Html.a [prop.href "https://facemorph.me";prop.text "Use classic FaceMorph"]
-                Html.text " while we fix this."]]]]
+            // The classic site is retiring, so errors no longer send people there: the honest
+            // recovery paths are the retry above and, when consented, the report reference.
+            ]]
         | None -> ()
         // Out of the primary action row: it protects a session, it is not a way to share.
         // Hidden 21 September (operator): project import and export stay out of the surface until
@@ -1362,6 +1370,7 @@ let view state dispatch = App.ThemedApp [
         if state.Browse.IsSome then Html.div [prop.className "next-name-dialog";prop.custom("role","dialog");prop.custom("aria-modal",true);prop.onKeyDown(fun e -> namesKey e (fun () -> dispatch CloseNames));prop.ariaLabel "Browse names";prop.children [
             Html.div [prop.className "next-name-panel box";prop.children [
                 Html.div [prop.className "next-topline";prop.children [Html.h2 "Browse names";Mui.button [button.variant.text;prop.onClick(fun _ -> dispatch CloseNames);button.children "Close"]]]
+                Html.p [prop.className "next-name-note";prop.text "The pictures here are previews. A name you pick is generated on this device, and the first use downloads the face model."]
                 Html.input [prop.className "next-text-input";prop.ariaLabel "Search names";prop.placeholder "Search names";prop.value state.NameQuery;prop.onChange(fun (v:string) -> dispatch(SearchNames v))]
                 Html.div [prop.className "next-name-grid";prop.children [
                     for name in state.Names |> Array.filter(fun x -> x.name.ToLowerInvariant().Contains(state.NameQuery.ToLowerInvariant())) |> Array.truncate state.NameLimit do
@@ -1461,7 +1470,7 @@ let view state dispatch = App.ThemedApp [
                     Html.p [Html.text "Source code: ";Mui.link [link.color.initial;prop.href ("https://github.com/"+githubRepo)
                                                                 prop.children [gitHubIcon [prop.style [style.fontSize (length.em 1.)]];Html.text (" "+githubRepo)]]]
                     Html.p [Html.text "Found a problem? ";Mui.link [link.color.initial;prop.href (issueUrl state.Route);prop.target "_blank";prop.rel "noopener";prop.text "Report an issue"];Html.text " — it fills in your version and device."]
-                    Html.p [prop.className "next-footer-version";prop.text ("Preview version " + sourceVersion())]]]
+                    Html.p [prop.className "next-footer-version";prop.text ((if isNextPreviewOrigin then "Preview version " else "Version ") + sourceVersion())]]]
                 Html.div [prop.className "next-footer-logo";prop.children [
                     Mui.svgIcon [svgIcon.component' Logos.logo;prop.style [style.fontSize (length.rem 5)]]]]]]]]
     ]]

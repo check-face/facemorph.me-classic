@@ -1,6 +1,6 @@
 /** Encoded dimensions are admitted before a native decoder can allocate pixels. */
 export function inspectImage(bytes,{maxPixels=4*1024*1024,maxBytes=25*1024*1024,maxEdge=8192,requireEightBit=true}={}){
- if(!(bytes instanceof Uint8Array)||bytes.length<8||bytes.length>maxBytes)throw Error('Choose a PNG or JPEG smaller than25 MB.');
+ if(!(bytes instanceof Uint8Array)||bytes.length<8||bytes.length>maxBytes)throw Error('Choose a PNG or JPEG smaller than 25 MB.');
  const v=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);let width,height,format,orientation=1;
  if(v.getUint32(0)===0x89504e47&&v.getUint32(4)===0x0d0a1a0a){
   if(bytes.length<33||v.getUint32(8)!==13||v.getUint32(12)!==0x49484452)throw Error('Invalid PNG header.');

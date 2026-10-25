@@ -28,6 +28,12 @@ let trialInvitationUrl : string = jsNative
 [<Emit("(typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname))")>]
 let isLocalPreview : bool = jsNative
 
+// Preview chrome (the Experimental-preview strip, the "Preview version" footer label and the
+// preview FAQ) belongs to the candidate host only. Gating it here by host keeps one source for
+// both next.facemorph.me and the promoted site: no source fork and no second artifact.
+[<Emit("(typeof window !== 'undefined' && /(^|\\.)next\\.facemorph\\.me$/.test(window.location.hostname))")>]
+let isNextPreviewOrigin : bool = jsNative
+
 [<Emit("(typeof window !== 'undefined' ? window.location.origin : 'https://cdilga-facemorph-next.hf.space')")>]
 let private trialOrigin : string = jsNative
 

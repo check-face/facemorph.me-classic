@@ -34,17 +34,20 @@
 // an `.next-adornment` — that class fades to 25% until hover or focus, which on a touch device
 // means "invisible until you have already tapped something". Sized and inset so it clears the
 // tile edge at 320px and never overlaps the per-face progress bar along the bottom.
-.next-face-close {
+// Nested under the image container so it out-ranks the component library's own button style
+// (defect 1): the library previously won the equal-specificity tie and dragged the control
+// back into normal flow below the clipped image.
+.next-face-image .next-face-close {
     position:absolute; top:.35rem; right:.35rem; z-index:2;
     width:2rem; height:2rem; padding:0;
     color:#f3f3f3; background:rgba(23,24,28,.62);
     border:1px solid rgba(240,240,240,.35); border-radius:50%;
     transition:background .15s ease-out, transform .15s ease-out;
 }
-.next-face-close:hover,.next-face-close:focus-visible { background:rgba(23,24,28,.88); transform:scale(1.08); }
-.next-face-close:focus-visible { outline:2px solid #ce621d; outline-offset:2px; }
-.next-face-close:disabled { opacity:.4; }
-.next-face-close .MuiSvgIcon-root { font-size:1.15rem; }
+.next-face-image .next-face-close:hover,.next-face-image .next-face-close:focus-visible { background:rgba(23,24,28,.88); transform:scale(1.08); }
+.next-face-image .next-face-close:focus-visible { outline:2px solid #ce621d; outline-offset:2px; }
+.next-face-image .next-face-close:disabled { opacity:.4; }
+.next-face-image .next-face-close .MuiSvgIcon-root { font-size:1.15rem; }
 
 // Per-face progress: a thin gradient bar across the bottom edge of the image, transform-only.
 .next-face-progress { position:absolute; left:0; right:0; bottom:0; height:4px; overflow:hidden; background:rgba(128,128,128,.18); }
@@ -149,6 +152,7 @@
 .next-crop-zoom input { flex:1; }
 .next-name-dialog { position:fixed; inset:0; z-index:1300; background:#0009; display:grid; place-items:center; padding:1rem; }
 .next-name-panel { max-width:1100px; width:100%; max-height:90vh; overflow:auto; }
+.next-name-note { margin:.25rem 0 .5rem; font-size:.85rem; opacity:.8; }
 // Faces at 100px were unreadable — classic showed names at 200px and you could actually tell the
 // faces apart, which is the entire point of browsing them. The floor rises with the viewport.
 .next-name-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:.75rem; margin:1rem 0; }
