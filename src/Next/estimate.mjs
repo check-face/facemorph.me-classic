@@ -56,8 +56,14 @@ export function createEstimator({faceMs = null, frameMs = null, encodeMs = null,
 export function describeMs(ms) {
 	if (!Number.isFinite(ms))return '';
 	const seconds = ms / 1000;
-	if (seconds < 90)return `about ${Math.max(1, Math.round(seconds))} seconds`;
-	if (seconds < 5400)return `about ${Math.max(1, Math.round(seconds / 60))} minutes`;
+	if (seconds < 90) {
+		const n = Math.max(1, Math.round(seconds));
+		return `about ${n} second${n === 1 ? '' : 's'}`;
+	}
+	if (seconds < 5400) {
+		const n = Math.max(1, Math.round(seconds / 60));
+		return `about ${n} minute${n === 1 ? '' : 's'}`;
+	}
 	return `about ${(seconds / 3600).toFixed(1)} hours`;
 }
 

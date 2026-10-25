@@ -40,6 +40,7 @@ test('The estimator predicts only from measurement and speaks the slow-run warni
  const faceOnly=createEstimator({faceMs:()=>1000,frameMs:()=>null});
  assert.equal(faceOnly.frameMs(),1000,'a frame is one synthesis too: fall back to the face figure');
  assert.equal(describeMs(75*1000),'about 75 seconds');
+ assert.equal(describeMs(1000),'about 1 second');
  assert.equal(describeMs(90*1000),'about 2 minutes');
  assert.equal(isSlowJob(30000),false,'exactly at the threshold is not slow');
  assert.equal(isSlowJob(30001),true,'just over it warns');

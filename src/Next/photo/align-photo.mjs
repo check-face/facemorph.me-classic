@@ -6,7 +6,7 @@ export const MULTIPLE_FACES_MESSAGE='Choose a clear photo containing exactly one
 export function createPhotoAligner({manifestUrl='/runtime/photo/manifest.json',workerUrl='/runtime/photo/photo-worker.mjs',workerFactory=url=>new Worker(url,{type:'module'}),stallMs=180000}={}){
  let active=false;
  const alignPhoto=async(blob,{signal,onProgress=()=>{},tryAlign=true,requireSingleFace=true}={})=>{
-  if(!(blob instanceof Blob)||blob.size<8||blob.size>25*1024*1024)throw Error('Choose a PNG or JPEG smaller than25 MB.');
+  if(!(blob instanceof Blob)||blob.size<8||blob.size>25*1024*1024)throw Error('Choose a PNG or JPEG smaller than 25 MB.');
   if(typeof requireSingleFace!=='boolean')throw Error('Single-face selection must be a boolean.');
   if(typeof tryAlign!=='boolean')throw Error('Alignment selection must be a boolean.');
   if(signal?.aborted)throw signal.reason||new DOMException('Photo preparation cancelled','AbortError');

@@ -4,7 +4,12 @@ main = "worker.mjs"
 compatibility_date = "2026-09-16"
 workers_dev = false
 preview_urls = false
-routes = [{ pattern = "next.facemorph.me/diagnostics/*", zone_name = "facemorph.me" }]
+routes = [
+  { pattern = "next.facemorph.me/diagnostics/*", zone_name = "facemorph.me" },
+  # The promoted site posts to its own origin first (same worker, allowlisted origin), so the
+  # collector keeps working when the candidate host goes away.
+  { pattern = "facemorph.me/diagnostics/*", zone_name = "facemorph.me" },
+]
 
 [vars]
 FREE_PLAN_CONFIRMED = "true"

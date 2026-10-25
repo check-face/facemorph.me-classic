@@ -21,7 +21,7 @@
 //     personalisation, no ad storage.
 //   - Fails open. A blocked script, a missing storage or a bad event never affects the product.
 export const MEASUREMENT_ID = 'G-F5F6JBLJ54';
-export const HOST = 'next.facemorph.me';
+export const HOSTS = ['next.facemorph.me', 'facemorph.me'];
 export const LINKED_DOMAINS = ['facemorph.me', 'next.facemorph.me'];
 
 // GA4 keeps 50 event-scoped custom dimensions and 50 metrics. These are the ones we register;
@@ -83,7 +83,7 @@ export function deviceProperties(nav = globalThis.navigator, isolated = globalTh
 export function allowed(env = globalThis) {
   try {
     const { location, navigator: nav } = env;
-    if (!location || location.hostname !== HOST || location.protocol !== 'https:') return false;
+    if (!location || !HOSTS.includes(location.hostname) || location.protocol !== 'https:') return false;
     if (nav?.webdriver) return false;
     if (nav?.globalPrivacyControl === true || nav?.doNotTrack === '1' || env.doNotTrack === '1') return false;
     if (nav?.connection?.saveData === true) return false;
