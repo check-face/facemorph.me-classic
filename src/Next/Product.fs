@@ -825,7 +825,7 @@ let private setpointField (props:FieldProps) =
                 Mui.tooltip [tooltip.title "Browse names";tooltip.children (
                     Mui.iconButton [prop.className "next-adornment";prop.tabIndex -1;prop.ariaLabel "Browse names"
                                     iconButton.edge.end';iconButton.children (imageSearchIcon []);prop.onClick(fun _ -> props.OnBrowse())])]]]
-    let placeholder = match props.Item.mode with | "seed" -> "Any number from 0 to 4294967295" | "project" -> "" | _ -> "Just type anything"
+    let placeholder = match props.Item.mode with | "seed" -> "Type a number" | "project" -> "" | _ -> "Just type anything"
     Mui.noSsr [
         Mui.menu [menu.anchorEl (anchorEl :?> IRefValue<Option<Element>>);menu.keepMounted true;menu.open' menuOpen;menu.onClose(fun _ -> setMenuOpen false)
                   menu.children [
@@ -1130,11 +1130,24 @@ let private videoSlot (state:State) dispatch =
 let faq (question:string) (answer:ReactElement list) =
     Html.details [prop.className "next-faq";prop.children (Html.summary question :: answer)]
 
+/// The Help entry that states what the site needs. Slow-route guidance, errors and Help link
+/// here instead of to a desktop download: the web page is the product on every device.
+[<Literal>]
+let private webRequirementsId = "web-requirements"
+
+// A fragment link scrolls to a closed <details> without opening it; open it first so the
+// person lands on the answer, then let the browser follow the link as usual.
+[<Emit("(function(){var d=document.getElementById($0);if(d)d.open=true;})()")>]
+let private openHelpEntry (id:string) : unit = jsNative
+
+let private webRequirementsLink (label:string) =
+    Html.a [prop.className "next-web-requirements-link";prop.href ("#"+webRequirementsId);prop.onClick(fun _ -> openHelpEntry webRequirementsId);prop.text label]
+
 let private explainSection =
     Html.section [prop.className "next-explain box";prop.custom("data-next-explain","true");prop.id "next-explain";prop.children [
         Html.h2 "What is this?"
         Html.p "Generate faces from words, seeds or photos. Add faces to build a longer loop. Share the image or video directly."
-        Html.p "Model files and full-size originals are saved on this device where storage is available. Your first generation takes longer while the models download."
+        Html.p [Html.text "Model files and full-size originals are saved on this device where storage is available. Your first generation takes longer while the models download. See the ";webRequirementsLink "web requirements";Html.text "."]
         Html.h3 "How does it work?"
         Html.p [Html.text "Whatever you type is hashed and used to ";Html.a [prop.href "https://en.wikipedia.org/wiki/Random_seed";prop.text "seed"];Html.text " a random number generator, which picks a point in the latent space of ";Html.a [prop.href "https://github.com/NVlabs/stylegan2";prop.text "StyleGAN2"];Html.text ". The same text always gives the same face. A morph walks between those points and generates every frame along the way."]
         Html.p [Html.text "When you use a photo, ";Html.a [prop.href "https://github.com/omertov/encoder4editing";prop.text "encoder4editing"];Html.text " encodes it as a latent. It balances accuracy against editability, so the result will not look quite like the photo, but it morphs well."]
@@ -1159,9 +1172,15 @@ let private explainSection =
             Html.p "Technically the text is hashed with SHA-256, which puts an upper limit of 2^256 on the number of endpoints you can reach by typing."]
         faq "Can I morph a photo of a real face?" [
             Html.p "Yes. Drop a photo onto a face, tap an empty face, or open a face's mode menu and choose Upload image. Photos are processed on your device and never uploaded."]
-        faq "What is next.facemorph.me?" [
-            Html.p [Html.text "It's an experimental preview of the next facemorph.me. Instead of a server making your faces, everything happens here on your device. The ";Html.a [prop.href "https://facemorph.me";prop.text "classic site"];Html.text " still works as it always has while we test this one."]
-            Html.p [Html.text "The classic site's server and API are being retired, on a date the operator sets — there is no fixed shutdown date. Old results, GUIDs and share links will stop working and cannot be preserved, and nothing here depends on them. ";Html.a [prop.href "https://facemorph.me/retirement";prop.text "Here's why, and what's changing"];Html.text "."]]
+        // Preview chrome: only the candidate host describes itself as a preview (Config.isNextPreviewOrigin);
+        // the promoted site answers the same question for itself.
+        if not isNextPreviewOrigin then
+            faq "How does facemorph.me work now?" [
+                Html.p "Everything happens here on your device: no server makes your faces. The old server and its API are being retired, on a date the operator sets. Links and results from the old site will stop working and cannot be preserved, and there are no share links for new results: save the image or video instead."]
+        if isNextPreviewOrigin then
+            faq "What is next.facemorph.me?" [
+                Html.p [Html.text "It's an experimental preview of the next facemorph.me. Instead of a server making your faces, everything happens here on your device. The ";Html.a [prop.href "https://facemorph.me";prop.text "classic site"];Html.text " still works as it always has while we test this one."]
+                Html.p [Html.text "The classic site's server and API are being retired, on a date the operator sets — there is no fixed shutdown date. Old results, GUIDs and share links will stop working and cannot be preserved, and nothing here depends on them. ";Html.a [prop.href "https://facemorph.me/retirement";prop.text "Here's why, and what's changing"];Html.text "."]]
         faq "Does anything leave my device?" [
             Html.p "No. Your photos, the words you type and the faces you make stay here. The first visit downloads the face models, and using your own photos downloads a photo encoder; the page shows each exact size before anything starts. They're saved on this device, so later visits don't download them again."
             Html.p "Completed generated faces are cached on this device when storage is available. Your last generated face can be restored on return; source photos are kept only in the current tab."
@@ -1172,12 +1191,17 @@ let private explainSection =
         faq "Why is the first face slow? Will it work on my phone?" [
             Html.p "The first face waits for the models to download and for a quick check that this device gets the maths right. After that a face takes under a second on a computer with a good graphics card, and longer on phones and on computers where the browser can't use the graphics card."
             Html.p "Slower devices still finish; the page tells you how long it expects. For long morphs, a laptop or desktop with a graphics card is much quicker."]
+        Html.details [prop.className "next-faq";prop.id webRequirementsId;prop.children [
+            Html.summary "What does this site need?"
+            Html.p "A recent web browser on a computer or phone. There is nothing to install: this page is the whole app."
+            Html.p "When the browser offers WebGPU and it passes a quick correctness check, faces are made on the graphics card. Otherwise they are made on the processor, which works without a graphics card but is slower."
+            Html.p "The face models are downloaded once and saved on this device, so it needs room to store them; the page shows each exact size before anything downloads."]]
         faq "What's in a debug report?" [
             Html.p "A random ID for the report, the site version, your browser and operating system, rough device facts like the number of processor cores, which processing mode was used, how long each step took, and error codes. Never your photos, words, faces or videos. Reports are kept to help us fix problems, with no deletion date."
             Html.p "You can turn reporting on or off at any time under For testing. After an error you can also send just that one report without turning reporting on."]
         faq "Something went wrong. How do I tell you?" [
             Html.p [Html.a [prop.href (issueUrl "");prop.target "_blank";prop.rel "noopener";prop.text "Open an issue on GitHub"];Html.text " (the version and device are filled in for you), or email ";Html.a [prop.href "mailto:checkfaceml@gmail.com";prop.text "checkfaceml@gmail.com"];Html.text ". If you sent a debug report, include its reference."]]
-        faq "Is there an API I can self-host?" [
+        faq "What happens to the old API?" [
             Html.p "Not as a hosted service. The hosted API is retiring and will not be replaced: old result links and GUIDs will stop working and cannot be preserved. To run your own, the classic source repository's self-host section builds the original site locally with Docker Compose."
             Html.p [Html.text "Questions about the transition are best in ";Html.a [prop.href (issueUrl "");prop.target "_blank";prop.rel "noopener";prop.text "a GitHub issue"];Html.text ", where the version and device details can be filled in for you."]]]]
 
@@ -1235,7 +1259,7 @@ let view state dispatch = App.ThemedApp [
         // Shown only to someone who opened the testing link, and only until they answer.
         if state.Invite && not state.Debug then
             Html.section [prop.className "next-invite box";prop.custom("role","region");prop.ariaLabel "Help us with this test";prop.children [
-                Html.h2 "Thanks for testing FaceMorph"
+                Html.h2 "Help improve FaceMorph"
                 Html.p "If anything is slow, wrong or broken, a debug report tells us what happened without you having to describe it."
                 Html.p "Reports contain a random device ID, app and browser versions, processing stages, timings and safe error codes. They never contain your photos, the words you type, the faces you make, or anything identifying you. They go to our private diagnostics service where they are kept with no deletion date."
                 Html.div [prop.className "next-actions";prop.children [
@@ -1293,7 +1317,7 @@ let view state dispatch = App.ThemedApp [
             Html.div [prop.className "next-slow-route box";prop.custom("role","note");prop.children [
                 Html.p [Html.strong "Generating is slow on this device.";Html.text (if state.Route="cpu" then " No graphics acceleration qualified here, so it is running on the processor." else sprintf " It qualified the %s route, but this machine is still taking a long time per face." state.Route)]
                 Html.p "You can keep using the page while work is queued. Try a shorter morph, or compare available processing routes under More options → Advanced."
-                Html.p "For long morphs, opening this same site on a computer with a recent browser is quicker — there is nothing to install."]]
+                Html.p [Html.text "For long morphs, opening this same site on a computer with a recent browser is quicker — there is nothing to install. See the ";webRequirementsLink "web requirements";Html.text "."]]]
         match state.Error with
         | Some message -> Html.div [prop.className "next-error box";prop.custom("role","alert");prop.children [
             Html.p message
@@ -1311,8 +1335,11 @@ let view state dispatch = App.ThemedApp [
                     Mui.button [button.variant.text;prop.className "next-error-retry";prop.onClick(fun _ -> dispatch Retry);button.children "Try again"]
                 Mui.button [button.variant.text;prop.onClick(fun _ -> dispatch DismissError);button.children "Dismiss"]]]
             // The classic site is retiring, so errors no longer send people there: the honest
-            // recovery paths are the retry above and, when consented, the report reference.
-            ]]
+            // recovery paths are the retry above, the web requirements and, when consented, the
+            // report reference.
+            Html.p [prop.className "next-error-help";prop.children [
+                Html.a [prop.href (issueUrl state.Route);prop.target "_blank";prop.rel "noopener";prop.text "Report this problem"]
+                Html.text ", or check the ";webRequirementsLink "web requirements";Html.text " for this site."]]]]
         | None -> ()
         // Out of the primary action row: it protects a session, it is not a way to share.
         // Hidden 21 September (operator): project import and export stay out of the surface until
