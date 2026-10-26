@@ -37,6 +37,8 @@ def pinned_inputs(cell_dir):
                 if '{' in line or line.lstrip().startswith('raise '):
                     continue  # a traceback's source line, not the failure it reports
                 line = re.sub(r'^[\w.-]+-\d+\s+\|\s+', '', line)  # drop the Compose service prefix
+                if 'the host sent a' in line:
+                    what = 'upstream weight host served a page, not the model (reported, not worked around)'
                 if (what, line) not in seen:
                     seen.add((what, line))
                     found.append((what, line, log.name))

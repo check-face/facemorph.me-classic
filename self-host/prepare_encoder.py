@@ -3,11 +3,22 @@ import argparse
 import bz2
 import hashlib
 import json
+import re
 from pathlib import Path
 import tempfile
 import urllib.request
 
 from encoder_assets import ASSETS, verified_asset
+
+def received(total, content_type, head):
+    """What the host sent instead, when it is a small page rather than the model (a host's quota or error page)."""
+    if total >= 65536 or not head.lstrip().startswith(b'<'):
+        return ''
+    title = re.search(rb'<title>([^<]{1,120})</title>', head, re.I)
+    page = f': "{title.group(1).decode(errors="replace").strip()}"' if title else ''
+    return (f' (the host sent a {total}-byte {content_type} page{page}, not the model; it may be rate-limiting this '
+            f'file, so retry later)')
+
 
 def download_entry(entry, name, directory):
     """Download and verify one asset described by `entry` (url/sha256/bytes[/compression]).
@@ -28,16 +39,19 @@ def download_entry(entry, name, directory):
             temporary = Path(output.name)
             digest = hashlib.sha256()
             total = 0
+            head = b''
             with urllib.request.urlopen(entry['url'], timeout=120) as response:
-                source = bz2.BZ2File(response) if entry.get('compression') == 'bz2' else response
+                content_type = response.headers.get_content_type()
+                source = bz2.BZ2File(response) if entry.get('compression') == 'bz2' and content_type != 'text/html' else response
                 while chunk := source.read(1024 * 1024):
+                    head = head or chunk[:4096]
                     total += len(chunk)
                     if total > entry['bytes']:
                         raise ValueError(f'Official download exceeds expected size: {name}')
                     digest.update(chunk)
                     output.write(chunk)
             if total != entry['bytes'] or digest.hexdigest() != entry['sha256']:
-                raise ValueError(f'Official download did not match deployed checksum: {name}')
+                raise ValueError(f'Official download did not match deployed checksum: {name}' + received(total, content_type, head))
         temporary.chmod(0o644)
         temporary.replace(target)
         downloaded = total

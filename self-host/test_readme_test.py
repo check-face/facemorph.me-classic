@@ -88,6 +88,20 @@ class RotReportTests(unittest.TestCase):
         self.assertNotIn('setup-1', body)
         self.assertIn('No general dependency bump', body)
 
+    def test_a_quota_page_is_reported_as_the_upstream_host(self):
+        with tempfile.TemporaryDirectory() as root:
+            cell = Path(root) / 'readme-test-cpu-ubuntu-24.04'
+            cell.mkdir()
+            (cell / 'result.json').write_text(json.dumps({'assertions': [
+                {'name': 'first run', 'passed': False, 'seconds': 1}]}))
+            (cell / 'quickstart.log').write_text(
+                'setup-1  | ValueError: Official download did not match deployed checksum: e4e_ffhq_encode.pt (the host '
+                'sent a 2040-byte text/html page: "Google Drive - Quota exceeded", not the model; it may be '
+                'rate-limiting this file, so retry later)\n')
+            body = rot_report.report(root, {'cpu': {'result': 'failure'}}, 'RUN')
+        self.assertIn('upstream weight host served a page, not the model', body)
+        self.assertIn('Google Drive - Quota exceeded', body)
+
     def test_a_cell_without_results_is_reported_as_not_started(self):
         with tempfile.TemporaryDirectory() as root:
             (Path(root) / 'readme-test-gpu-rtx2080s').mkdir()

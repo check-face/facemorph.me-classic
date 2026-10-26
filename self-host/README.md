@@ -222,7 +222,7 @@ reported as such, not worked around.
 |---|---|---|
 | Compute capability | 7.0 to 12.x (Volta, Turing, Ampere, Ada, Hopper, Blackwell): the pinned torch 2.9.1+cu128 wheels ship `sm_70, sm_75, sm_80, sm_86, sm_90, sm_100, sm_120` | 7.5 (RTX 2080 SUPER) |
 | Driver | Linux 570 or newer (CUDA 12.8) | 610.57.04 |
-| Pascal (6.x) and older | CPU only: the startup check names the card, its capability and the supported range, then exits; use the CPU block | 6.1 refusal: see the Pascal row when it has run |
+| Pascal (6.x) and older | CPU only: the startup check names the card, its capability and the supported range, then exits; use the CPU block | untested: the Pascal host (GTX 1080, 6.1) runs driver 470.256.02, older than the 570 these wheels need, so PyTorch sees no CUDA and stops with "CUDA requested but unavailable … check your host driver" before the capability check can run. The 570 and 580 driver branches still support Pascal. |
 | Blackwell (12.x) | supported by the arch list | untested: the README-executed acceptance runs on the newest generation once before a release tag |
 
 **The one allowed unfreeze.** When a new GPU generation is missing from the pinned
@@ -257,6 +257,8 @@ branch in place of `self-host`, its one logged substitution.
 **On CPU hosted runners:** a 2.6 to 3.0 GB image and 2.4 to 2.9 GB of build cache.
 
 **Untested:**
+- the Pascal refusal on real hardware: the GTX 1080 host needs a 570 or 580 driver
+  first (it has 470.256.02);
 - every NVIDIA GPU other than the RTX 2080 SUPER, including Blackwell, which is
   needed once before a release tag on a machine the operator supplies or approves
   renting;
@@ -278,7 +280,11 @@ branch in place of `self-host`, its one logged substitution.
 - GitHub, for NVlabs `stylegan2-ada-pytorch` at commit `d72cc7d`, checked by SHA-256.
 
 **Model weights** come from their authors at setup: NVIDIA's CDN (StyleGAN2 FFHQ),
-dlib.net (landmark model) and one Google Drive link (e4e encoder). Compose v2.20 or
+dlib.net (landmark model) and one Google Drive link (e4e encoder). Google Drive
+limits downloads of a file per day. Past the limit, it serves a "Quota exceeded"
+page instead of the encoder. Setup then refuses it by hash, names the page, and
+installs nothing; run the same command again later. This happened on 26 October
+2026, after a day of validation runs. Compose v2.20 or
 newer is required for the root `compose.yaml`'s `include`.
 
 ### Running the checks yourself
