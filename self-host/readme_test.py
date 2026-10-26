@@ -239,7 +239,9 @@ class Run:
     def disk(self):
         sizes = {}
         for volume in ('models', 'database', 'cache'):
-            r = self.sh(['docker', 'run', '--rm', '-v', f'{self.project}_{volume}:/v:ro', '--entrypoint', 'du',
+            # As root: the database volume belongs to Mongo's user.
+            r = self.sh(['docker', 'run', '--rm', '--user', '0:0', '-v', f'{self.project}_{volume}:/v:ro',
+                         '--entrypoint', 'du',
                          self.result['images']['api']['id'], '-sb', '/v'])
             sizes[f'volume_{volume}_bytes'] = int(r.stdout.split()[0]) if r.returncode == 0 else None
         sizes['images_bytes'] = sum({i['id']: i['size_bytes'] or 0 for i in self.result['images'].values()}.values())
