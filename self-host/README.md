@@ -38,7 +38,7 @@ Review the model/source terms below, then:
 variable is <canonical-url>, the repository URL (and branch) given here. -->
 
 ```sh
-git clone --branch self-host https://github.com/check-face/facemorph.me-classic.git facemorph.me
+git clone --branch self-host https://github.com/facemorph-me/facemorph.me-classic.git facemorph.me
 cd facemorph.me
 ACCEPT_MODEL_TERMS=yes docker compose up
 ```
@@ -186,7 +186,7 @@ docker compose exec -T api python smoke_encoder_http.py
 
 The repeated HTTP checks verify existing GUIDs, encoded-upload records and media
 survive restart. Long-morph unit checks cover both 199 and 200 frames with bounded
-live image buffers. See [candidate CI runs](https://github.com/check-face/facemorph.me-classic/actions/workflows/self-host-build.yml)
+live image buffers. See [candidate CI runs](https://github.com/facemorph-me/facemorph.me-classic/actions/workflows/self-host-build.yml)
 for the tested commit and complete Linux build/inference logs.
 
 The build inputs are frozen: every base image is pinned by digest
