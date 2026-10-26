@@ -132,7 +132,10 @@ jobs:
         # triton (Ubuntu 20.04) has Compose v2.2.3, which rejects the root compose.yaml's `include`. A pinned, checksummed
         # Compose goes into a job-local Docker config; the host's own Docker setup is untouched.
         run: |
-          if docker compose version --short 2>/dev/null | awk -F. '{exit !($1 > 2 || ($1 == 2 && $2 >= 20))}'; then exit 0; fi
+          # `--short` is newer than some Compose v2 releases (v2.2.3 prints nothing), so parse the full version line.
+          v=$(docker compose version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          echo "host Compose: ${v:-none}"
+          if [ -n "$v" ] && [ "$(printf '%s\n2.20.0\n' "$v" | sort -V | head -1)" = 2.20.0 ]; then exit 0; fi
           mkdir -p "$RUNNER_TEMP/docker/cli-plugins"
           [ -f ~/.docker/config.json ] && cp ~/.docker/config.json "$RUNNER_TEMP/docker/" || true
           curl -fsSL -o "$RUNNER_TEMP/docker/cli-plugins/docker-compose" \

@@ -47,6 +47,8 @@ MODEL_BYTES = 381673535
 # A small encoder asset for the corruption check (refused by hash, never overwritten).
 CORRUPT_ASSET = 'shape_predictor_68_face_landmarks.dat'
 SERVING = 'Serving on http://localhost:8080'
+PROBE_IMAGE = ('python:3.11-slim-bookworm@sha256:'
+               'f06d01d4ba3f8ad5af45a3ec87df19c1d317d8e8961edc0fabda61811af6f7cf')
 # What the image's torch build supports and sees, recorded on every run (arch list, capability, GPU).
 TORCH_INFO = ("import json, torch; print(json.dumps({'torch': torch.__version__, 'cuda': torch.version.cuda, "
               "'arch_list': torch.cuda.get_arch_list(), 'cuda_available': torch.cuda.is_available(), "
@@ -198,8 +200,9 @@ class Run:
         runtimes = self.sh(['docker', 'info', '--format', '{{json .Runtimes}}']).stdout
         env['docker_nvidia_runtime'] = 'nvidia' in runtimes
         if smi and self.args.mode in ('gpu', 'gpu-unsupported'):
-            # Can a container see the GPU at all? The Container Toolkit injects nvidia-smi into any image.
-            probe = self.sh(['docker', 'run', '--rm', '--gpus', 'all', 'busybox:1.36', 'nvidia-smi', '-L'], timeout=300)
+            # Can a container see the GPU at all? The Container Toolkit injects nvidia-smi into a glibc image; this is
+            # the Dockerfile's own pinned Python base.
+            probe = self.sh(['docker', 'run', '--rm', '--gpus', 'all', PROBE_IMAGE, 'nvidia-smi', '-L'], timeout=300)
             env['container_gpu'] = probe.stdout.strip()[-300:] if probe.returncode == 0 else (
                 f'unavailable ({probe.returncode}): {probe.stdout.strip()[-300:]}')
         return env
