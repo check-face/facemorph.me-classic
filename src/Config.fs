@@ -56,7 +56,8 @@ let githubRepo = "facemorph-me/facemorph.me-classic"
 let defaultTextValue = "hello"
 let defaultNumericSeed = 389u // 389 is one of the seeds featured in the stylegan2 paper
 
-let apiAddr = if isSelfHost then "" elif isTrial then "/trial" else "https://api.facemorph.me"
+// The hosted API is retired (fm-ww4, fm-8lq); the candidate names no retired host, not even in its source maps.
+let apiAddr = if isSelfHost then "" elif isTrial then "/trial" else ""
 let encodeApiAddr = apiAddr + "/api/encodeimage/"
 
 let browseFacesEmbedSrc = "https://names.facemorph.me" // Only the hosted mode embeds this service.
