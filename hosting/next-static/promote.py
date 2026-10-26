@@ -5,19 +5,33 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 import webgpu_contract
 REPO=Path(__file__).resolve().parents[2]
-REMOTE='check-face/facemorph.me'
+# Retained candidate artifacts come from this repository, identified by its numeric ID. Names move
+# (after the organization rename the old owner/name of this repository resolves to the new monorepo), so
+# every run is read by ID and the owner/name used for downloads is the one the ID resolves to now.
+REPO_ID=295956585
+REMOTE='facemorph-me/facemorph.me-classic'
 def command(*args):return subprocess.check_output(list(args),cwd=REPO,text=True)
+def source_repository():
+    data=json.loads(command('gh','api',f'repositories/{REPO_ID}'))
+    if data['id']!=REPO_ID or data['full_name']!=REMOTE:
+        raise ValueError(f"Repository {REPO_ID} is {data['full_name']}, not {REMOTE}")
+    return data
 def passed_run(run,path):
-    data=json.loads(command('gh','api',f'repos/{REMOTE}/actions/runs/{run}'))
-    if data['conclusion']!='success' or data['path']!=path or data['head_repository']['full_name']!=REMOTE:
+    data=json.loads(command('gh','api',f'repositories/{REPO_ID}/actions/runs/{run}'))
+    if data['conclusion']!='success' or data['path']!=path or data['repository']['id']!=REPO_ID or data['head_repository']['id']!=REPO_ID:
         raise ValueError('Required successful workflow/source is missing')
     return data
-p=argparse.ArgumentParser();p.add_argument('--build-run',type=int,required=True);p.add_argument('--qualification-run',type=int,required=True);p.add_argument('--runtime',type=Path,required=True);p.add_argument('--catalogue',type=Path,required=True);p.add_argument('--work',type=Path,required=True);p.add_argument('--publish',action='store_true');p.add_argument('--discard-after',action='store_true',help='Remove this run\'s work directory once the receipt is written.');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--build-run',type=int,required=True);p.add_argument('--qualification-run',type=int,required=True);p.add_argument('--runtime',type=Path);p.add_argument('--catalogue',type=Path);p.add_argument('--work',type=Path);p.add_argument('--publish',action='store_true');p.add_argument('--discard-after',action='store_true',help='Remove this run\'s work directory once the receipt is written.');p.add_argument('--source-only',action='store_true',help='Check the source repository and both runs by ID, print them and stop: no download, staging or publication.');a=p.parse_args()
+if not a.source_only and not (a.runtime and a.catalogue and a.work):p.error('--runtime, --catalogue and --work are required unless --source-only')
+repository=source_repository()
 build=passed_run(a.build_run,'.github/workflows/next-site.yml')
 # The artifact build calls the qualification as a reusable workflow, so the usual case is one
 # run that both built and qualified these bytes. A separate run is still accepted when the
 # qualification was pointed at an earlier artifact by hand.
 qualified=build if a.qualification_run==a.build_run else passed_run(a.qualification_run,'.github/workflows/next-e2e.yml')
+if a.source_only:
+    print(json.dumps({'repositoryId':repository['id'],'repository':repository['full_name'],'buildRun':build['id'],'qualificationRun':qualified['id'],'source':build['head_sha'],'published':False}))
+    sys.exit(0)
 work=a.work.resolve();work.mkdir(parents=True,exist_ok=False)
 web=work/'web';proof=work/'qualification'
 command('gh','run','download',str(a.build_run),'-R',REMOTE,'-n','next-site-'+build['head_sha'],'-D',str(web))

@@ -103,8 +103,8 @@ jobs:
       # never imported by a test, so nothing else reads them until CI runs them for real.
       - name: Publication and qualification scripts parse
         run: python3 -m compileall -q scripts hosting/next hosting/next-static src/Next/browser
-      - name: WebGPU bundle contract gate
-        run: python3 -m unittest discover -s hosting/next-static -p 'webgpu_contract_test.py' -t hosting/next-static
+      - name: WebGPU bundle contract and promotion source gates
+        run: python3 -m unittest discover -s hosting/next-static -p '*_test.py' -t hosting/next-static
       - name: Install browser controller
         run: python -m pip install browser-harness==0.1.8
       - name: Run actual artifact in Chromium

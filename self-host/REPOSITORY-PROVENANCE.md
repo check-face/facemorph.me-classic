@@ -6,6 +6,9 @@ The Docker API is an optional self-hosted distribution, never a dependency of th
 
 The shell builds `check-face/facemorph.me` commit
 `0abb215f27b16e17e3919cf78b616b6ae4998a5d` plus the recorded frontend overlay.
+That repository name is historical: the commit lives in this classic repository, now
+`facemorph-me/facemorph.me-classic` (repository ID 295956585), while `check-face/facemorph.me`
+now names the monorepo. `check-face/checkface` is likewise `facemorph-me/checkface`, archived.
 The current `candidate/next-delivery-20260916` frontend deployed at
 `next.facemorph.me` runs inference locally and does not consume this API.
 The [quickstart](README.md) checks out the current repository for API packaging;

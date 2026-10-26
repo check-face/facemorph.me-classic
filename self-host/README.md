@@ -35,8 +35,8 @@ needed. NVIDIA drivers and the Container Toolkit remain host-installed.
 Review the model/source terms below, then:
 
 ```sh
-git clone --branch candidate/next-delivery-20260916 https://github.com/check-face/facemorph.me-classic.git
-cd facemorph.me/self-host
+git clone --branch candidate/next-delivery-20260916 https://github.com/facemorph-me/facemorph.me-classic.git
+cd facemorph.me-classic/self-host
 export COMPOSE_FILE=compose.yml:compose.gpu.yml
 docker compose build
 docker compose run --rm setup --accept-research-license
@@ -173,7 +173,7 @@ docker compose exec -T api python smoke_encoder_http.py
 
 The repeated HTTP checks verify existing GUIDs, encoded-upload records and media
 survive restart. Long-morph unit checks cover both 199 and 200 frames with bounded
-live image buffers. See [candidate CI runs](https://github.com/check-face/facemorph.me-classic/actions/workflows/self-host-build.yml)
+live image buffers. See [candidate CI runs](https://github.com/facemorph-me/facemorph.me-classic/actions/workflows/self-host-build.yml)
 for the tested commit and complete Linux build/inference logs.
 
 Python/Torch/direct dependencies and source revisions are pinned. Base-image
