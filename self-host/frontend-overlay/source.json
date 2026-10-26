@@ -1,6 +1,11 @@
 {
   "repository": "https://github.com/check-face/facemorph.me.git",
   "revision": "0abb215f27b16e17e3919cf78b616b6ae4998a5d",
+  "current_resolution": {
+    "repository": "https://github.com/facemorph-me/facemorph.me-classic.git",
+    "repository_id": 295956585,
+    "note": "The pinned commit was recorded under the repository name of the time; it lives in classic (repository ID 295956585). check-face/facemorph.me now names the monorepo, so resolve the pin here."
+  },
   "vendored": "frontend/source",
   "vendored_files": "frontend/source.files.sha256",
   "overlay_files": {
