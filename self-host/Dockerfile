@@ -3,7 +3,7 @@ FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:5.0.408-bullseye-sli
 COPY --from=node-tools /usr/local/ /usr/local/
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
 ARG FRONTEND_REV=0abb215f27b16e17e3919cf78b616b6ae4998a5d
-RUN git clone https://github.com/check-face/facemorph.me-classic.git /src && cd /src && git checkout "$FRONTEND_REV" && rm -rf .git
+RUN git clone https://github.com/facemorph-me/facemorph.me-classic.git /src && cd /src && git checkout "$FRONTEND_REV" && rm -rf .git
 WORKDIR /src
 COPY frontend-overlay/source/ ./
 RUN npm ci && npm run build:self-host

@@ -4,6 +4,8 @@ This builds the existing F# / Fable / Elmish / React application for the local
 CheckFace API. It is not a replacement page or new UI. The source is pinned in
 `source.json` to `check-face/facemorph.me` commit
 `0abb215f27b16e17e3919cf78b616b6ae4998a5d`.
+`source.json` keeps that historical name; its `current_resolution` records where the commit
+resolves today: `facemorph-me/facemorph.me-classic`, repository ID 295956585.
 
 This pin is the historical API-backed frontend. The current candidate branch's
 `src/Next/` frontend at `next.facemorph.me` performs inference locally and does
