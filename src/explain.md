@@ -90,9 +90,9 @@ and upload an image.
 ---
 
 #### Is there a StyleGAN2 API?
-The source code for our server is at [github.com/check-face/checkface](https://github.com/check-face/checkface)
+The source code for our server is at [github.com/facemorph-me/checkface](https://github.com/facemorph-me/checkface)
 It is documented at [checkface.facemorph.me/api](https://checkface.facemorph.me/api)
-<!-- or at https://github.com/check-face/checkface/blob/master/docs/api.md -->
+<!-- or at https://github.com/facemorph-me/checkface/blob/master/docs/api.md -->
 
 If you need a setup you can keep under your own control, self-hosting `checkface` is still the safest option for now.
 

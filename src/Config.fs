@@ -14,7 +14,7 @@ let siteName = "facemorph.me"
 let canonicalBaseUrl = "https://facemorph.me"
 let oEmbedApiEndpoint = canonicalBaseUrl + "/oembed.json"
 let contactEmail = "checkfaceml@gmail.com"
-let githubRepo = "check-face/facemorph.me"
+let githubRepo = "facemorph-me/facemorph.me-classic"
 let apiTransitionDateLabel = "November 1, 2026 (AEST)"
 
 let defaultTextValue = "hello"

@@ -1,6 +1,6 @@
 # facemorph.me
 
-[![Gitpod ready-to-code](https://img.shields.io/badge/Gitpod-ready--to--code-blue?logo=gitpod)](https://gitpod.io/#https://github.com/check-face/facemorph.me)
+[![Gitpod ready-to-code](https://img.shields.io/badge/Gitpod-ready--to--code-blue?logo=gitpod)](https://gitpod.io/#https://github.com/facemorph-me/facemorph.me-classic)
 
 The site is written in F# using [Fable](https://fable.io/).
 It uses the [CheckFace API](https://checkface.facemorph.me/api) for generating images and videos.
