@@ -193,7 +193,10 @@ class Run:
         return env
 
     def preflight(self):
-        """The project must start empty: no containers, volumes or images under its name."""
+        """Docker must answer, and the project must start empty: no containers, volumes or images under its name."""
+        info = self.sh(['docker', 'info', '--format', '{{.ServerVersion}}'])
+        if info.returncode != 0:
+            raise SystemExit(f'docker is not usable by this user (untested, not a result): {info.stdout.strip()[:300]}')
         leftovers = {
             'containers': self.sh(['docker', 'ps', '-aq', '--filter', f'label=com.docker.compose.project={self.project}']).stdout.split(),
             'volumes': self.sh(['docker', 'volume', 'ls', '-q', '--filter', f'label=com.docker.compose.project={self.project}']).stdout.split(),

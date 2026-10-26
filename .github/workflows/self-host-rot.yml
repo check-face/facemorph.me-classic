@@ -114,11 +114,13 @@ jobs:
           df -h "$(docker info --format '{{.DockerRootDir}}')" | tail -1
 
   gpu-unsupported:
-    # Pascal GTX 1050 (compute capability 6.1), outside the cu128 wheels' kernels: the default CUDA start must stop
-    # at the capability check with its plain message, and the CPU override must then serve a face on the same host.
+    # The Pascal cell (operator, 24 October): triton's GTX 1080, compute capability 6.1, outside the cu128 wheels'
+    # kernels. The default CUDA start must stop at the capability check with its plain message, and the CPU override
+    # must then serve a face on the same host. The TrueNAS GTX 1050 is an optional extra cell: its runner user cannot
+    # reach Docker without sudo, so it stays untested until the operator grants that.
     needs: harness
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (inputs.cell == 'all' || inputs.cell == 'gpu-unsupported'))
-    runs-on: [self-hosted, gpu-gtx1050]
+    runs-on: [self-hosted, gpu-gtx1080]
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
@@ -126,7 +128,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: readme-test-gpu-gtx1050
+          name: readme-test-gpu-gtx1080
           path: evidence/
           retention-days: 90
       - name: Remove anything a killed harness left (its containers, volumes, images and builder)
