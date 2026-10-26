@@ -144,7 +144,10 @@ jobs:
           chmod +x "$RUNNER_TEMP/docker/cli-plugins/docker-compose"
           echo "DOCKER_CONFIG=$RUNNER_TEMP/docker" >> "$GITHUB_ENV"
           DOCKER_CONFIG="$RUNNER_TEMP/docker" docker compose version
-      - run: python3 self-host/readme_test.py --mode gpu-unsupported --out evidence --workdir "$RUNNER_TEMP" --min-free-gib 30 $DEV_ARGS
+      - # triton's kernel (5.4) cannot start the containerised BuildKit's runc ("can't mask dir /proc/acpi"), so this cell
+        # builds with the host's default builder; result.json records that the build cache was not proven empty. What this
+        # cell proves is the capability refusal and the CPU override, not a cold build (the CUDA cell proves that).
+        run: python3 self-host/readme_test.py --mode gpu-unsupported --out evidence --workdir "$RUNNER_TEMP" --min-free-gib 30 --reuse-build-cache $DEV_ARGS
       - uses: actions/upload-artifact@v4
         if: always()
         with:
