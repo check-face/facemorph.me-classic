@@ -72,10 +72,12 @@ jobs:
           retention-days: 30
 
   gpu:
-    # The planned CUDA cell: RTX 2080 SUPER (Turing) on the workstation. Not on pull requests: the workstation is a
-    # shared device, so the GPU acceptance runs on the distribution branch, monthly, or on dispatch.
+    # The planned CUDA cell: RTX 2080 SUPER (Turing) on the workstation, the only runner with a GPU inside the cu128
+    # wheels' architectures (the GTX 1080 and GTX 1050 runners are Pascal, 6.1). The workstation is shared and its
+    # disk is tight, so the GPU cells run only monthly and on dispatch, never per push or pull request; the harness
+    # refuses to start below 35 GiB free and removes the image, volumes and build cache when it ends.
     needs: harness
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: [self-hosted, gpu-rtx2080s]
     timeout-minutes: 240
     steps:
@@ -88,12 +90,22 @@ jobs:
           name: readme-test-gpu-rtx2080s
           path: evidence/
           retention-days: 90
+      - name: Remove anything a killed harness left (its containers, volumes, images and builder)
+        if: always()
+        run: |
+          for p in $(docker ps -a --format '{{.Label "com.docker.compose.project"}}' | grep '^readmetest-' | sort -u); do
+            docker ps -aq --filter "label=com.docker.compose.project=$p" | xargs -r docker rm -f
+          done
+          docker volume ls -q --filter label=com.docker.compose.project | grep '^readmetest-' | xargs -r docker volume rm
+          docker images --format '{{.Repository}}:{{.Tag}}' | grep '^readmetest-' | xargs -r docker rmi -f
+          docker buildx ls --format '{{.Name}}' | grep '^readmetest-' | xargs -r -n1 docker buildx rm --force
+          df -h "$(docker info --format '{{.DockerRootDir}}')" | tail -1
 
   gpu-unsupported:
     # Pascal GTX 1050 (compute capability 6.1), outside the cu128 wheels' kernels: the default CUDA start must stop
     # at the capability check with its plain message, and the CPU override must then serve a face on the same host.
     needs: harness
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: [self-hosted, gpu-gtx1050]
     timeout-minutes: 240
     steps:
@@ -105,6 +117,16 @@ jobs:
           name: readme-test-gpu-gtx1050
           path: evidence/
           retention-days: 90
+      - name: Remove anything a killed harness left (its containers, volumes, images and builder)
+        if: always()
+        run: |
+          for p in $(docker ps -a --format '{{.Label "com.docker.compose.project"}}' | grep '^readmetest-' | sort -u); do
+            docker ps -aq --filter "label=com.docker.compose.project=$p" | xargs -r docker rm -f
+          done
+          docker volume ls -q --filter label=com.docker.compose.project | grep '^readmetest-' | xargs -r docker volume rm
+          docker images --format '{{.Repository}}:{{.Tag}}' | grep '^readmetest-' | xargs -r docker rmi -f
+          docker buildx ls --format '{{.Name}}' | grep '^readmetest-' | xargs -r -n1 docker buildx rm --force
+          df -h "$(docker info --format '{{.DockerRootDir}}')" | tail -1
 
   report:
     needs: [harness, cpu, gpu-absent, gpu, gpu-unsupported]

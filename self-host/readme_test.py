@@ -459,7 +459,7 @@ class Run:
                                     [r'has compute capability \d+\.\d+', r'supports compute capability',
                                      r'docker compose -f self-host/compose.yml up'], self.args.first_run_limit)
                 self.cpu_on_same_host()
-        except Exception as error:  # noqa: BLE001 - recorded as a failed run, then cleaned up
+        except (Exception, KeyboardInterrupt) as error:  # noqa: BLE001 - recorded as a failed run, then cleaned up
             self.record('harness completed', False, time.monotonic(), error=f'{type(error).__name__}: {error}')
         finally:
             self.cleanup()
@@ -533,6 +533,9 @@ def main(argv=None):
                         help='refuse to start below this much free space under the Docker root (CUDA image ~13 GB, '
                              'held twice while a fresh builder loads it, plus ~1.7 GB of models)')
     parser.add_argument('--keep', action='store_true', help='keep the project, builder and workdir for inspection')
+    # A cancelled or timed-out CI job sends SIGTERM: turn it into an exception so cleanup still removes the images,
+    # volumes and build cache.
+    signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt('SIGTERM')))
     return Run(parser.parse_args(argv)).run()
 
 
