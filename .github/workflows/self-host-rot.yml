@@ -47,8 +47,12 @@ jobs:
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
+      - name: A browser for the frontend check (the arm64 image has no Chrome; Playwright's Chromium covers both)
+        run: |
+          npx -y playwright@1.56.1 install --with-deps chromium >/dev/null
+          echo "CHROME=$(find ~/.cache/ms-playwright -path '*chrome-linux*/chrome' -type f | head -1)" >> "$GITHUB_ENV"
       - name: README CPU block, verbatim, from an empty directory
-        run: python3 self-host/readme_test.py --mode cpu --out evidence --min-free-gib 12 $DEV_ARGS
+        run: python3 self-host/readme_test.py --mode cpu --out evidence --min-free-gib 12 --chrome "$CHROME" $DEV_ARGS
       - uses: actions/upload-artifact@v4
         if: always()
         with:

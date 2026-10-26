@@ -24,6 +24,7 @@ import json
 import os
 import platform
 import re
+import shlex
 import shutil
 import signal
 import socket
@@ -260,8 +261,9 @@ class Run:
         t = time.monotonic()
         try:
             status, mime, body = self.get('/api/face/?seed=0&dim=512')
-            size = jpeg_size(body) if mime == 'image/jpeg' else None
-            self.record('/api/face/?seed=0&dim=512 returns a 512x512 image', status == 200 and size == (512, 512), t,
+            # The historic API labels its JPEGs image/jpg; the bytes decide.
+            size = jpeg_size(body)
+            self.record('/api/face/?seed=0&dim=512 returns a 512x512 JPEG', status == 200 and size == (512, 512), t,
                         status=status, content_type=mime, bytes=len(body), size=size)
         except urllib.error.URLError as error:
             self.record('/api/face/?seed=0&dim=512 returns a 512x512 image', False, t, error=str(error))
@@ -338,7 +340,7 @@ class Run:
         self.interrupt(process)
         self.compose('down')
         bare = script_up.replace('ACCEPT_MODEL_TERMS=yes ', '')
-        r = self.sh(f'timeout 300 {bare}', log_name='missing-terms.log', timeout=320)
+        r = self.sh(f'timeout 300 bash -c {shlex.quote(bare)}', log_name='missing-terms.log', timeout=320)
         state = self.compose('ps', '-a', '--format', '{{.State}}', 'api').stdout.strip()
         ok = r.returncode not in (0, 124) and 'ACCEPT_MODEL_TERMS=yes docker compose up' in r.stdout and state != 'running'
         self.record('missing terms acknowledgement fails fast with the refusal and no API', ok, t, exit=r.returncode,
@@ -389,7 +391,7 @@ class Run:
         self.compose('down')
         self.in_models(f'printf x | dd of=/models/{CORRUPT_ASSET} bs=1 seek=4096 conv=notrunc 2>/dev/null',
                        'corrupt.log')
-        r = self.sh(f'timeout 900 {script_up}', log_name='corrupt-up.log', timeout=920)
+        r = self.sh(f'timeout 900 bash -c {shlex.quote(script_up)}', log_name='corrupt-up.log', timeout=920)
         state = self.compose('ps', '-a', '--format', '{{.State}}', 'api').stdout.strip()
         refused = (r.returncode not in (0, 124) and f'Unverified encoder asset: {CORRUPT_ASSET}' in r.stdout
                    and state != 'running')
