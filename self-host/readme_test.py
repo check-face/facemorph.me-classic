@@ -190,11 +190,18 @@ class Run:
         smi = shutil.which('nvidia-smi')
         if smi:
             q = self.sh([smi, '--query-gpu=name,driver_version,compute_cap,memory.total', '--format=csv,noheader'])
+            if q.returncode != 0:  # an older driver's nvidia-smi has no compute_cap field
+                q = self.sh([smi, '--query-gpu=name,driver_version,memory.total', '--format=csv,noheader'])
             env['nvidia_smi'] = q.stdout.strip() if q.returncode == 0 else f'unavailable: {q.stdout.strip()[:200]}'
         else:
             env['nvidia_smi'] = 'not installed'
         runtimes = self.sh(['docker', 'info', '--format', '{{json .Runtimes}}']).stdout
         env['docker_nvidia_runtime'] = 'nvidia' in runtimes
+        if smi and self.args.mode in ('gpu', 'gpu-unsupported'):
+            # Can a container see the GPU at all? The Container Toolkit injects nvidia-smi into any image.
+            probe = self.sh(['docker', 'run', '--rm', '--gpus', 'all', 'busybox:1.36', 'nvidia-smi', '-L'], timeout=300)
+            env['container_gpu'] = probe.stdout.strip()[-300:] if probe.returncode == 0 else (
+                f'unavailable ({probe.returncode}): {probe.stdout.strip()[-300:]}')
         return env
 
     def preflight(self):

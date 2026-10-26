@@ -128,6 +128,19 @@ jobs:
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
+      - name: Compose v2.20+ for this job only, if the host's is older (the README's stated requirement)
+        # triton (Ubuntu 20.04) has Compose v2.2.3, which rejects the root compose.yaml's `include`. A pinned, checksummed
+        # Compose goes into a job-local Docker config; the host's own Docker setup is untouched.
+        run: |
+          if docker compose version --short 2>/dev/null | awk -F. '{exit !($1 > 2 || ($1 == 2 && $2 >= 20))}'; then exit 0; fi
+          mkdir -p "$RUNNER_TEMP/docker/cli-plugins"
+          [ -f ~/.docker/config.json ] && cp ~/.docker/config.json "$RUNNER_TEMP/docker/" || true
+          curl -fsSL -o "$RUNNER_TEMP/docker/cli-plugins/docker-compose" \
+            https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64
+          echo "383ce6698cd5d5bbf958d2c8489ed75094e34a77d340404d9f32c4ae9e12baf0  $RUNNER_TEMP/docker/cli-plugins/docker-compose" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/docker/cli-plugins/docker-compose"
+          echo "DOCKER_CONFIG=$RUNNER_TEMP/docker" >> "$GITHUB_ENV"
+          DOCKER_CONFIG="$RUNNER_TEMP/docker" docker compose version
       - run: python3 self-host/readme_test.py --mode gpu-unsupported --out evidence --workdir "$RUNNER_TEMP" --min-free-gib 30 $DEV_ARGS
       - uses: actions/upload-artifact@v4
         if: always()
