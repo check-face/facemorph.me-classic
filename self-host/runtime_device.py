@@ -22,27 +22,33 @@ def configure_device(torch):
 CPU_OVERRIDE = 'ACCEPT_MODEL_TERMS=yes docker compose -f self-host/compose.yml up'
 
 
-def check_capability(torch, index=0):
-    """Refuse a GPU that this build's CUDA kernels cannot run, with a plain message instead of a later kernel error.
+def unsupported_gpu_message(name, capability, arch_list, torch_version, cuda_version):
+    """The plain refusal for a GPU this build's CUDA kernels cannot run, or None when it can.
 
-    A card runs when the wheel ships kernels for its exact architecture (sm_XY) or PTX for an architecture at or
-    below it (compute_XY, which the driver compiles forward).
+    A pure function of the device and the wheel's arch list (torch.cuda.get_arch_list()). A card runs when the wheel
+    ships kernels for its major architecture at or below its minor version (sm_XY runs on X.Z for Z >= Y), or PTX for
+    an architecture at or below it (compute_XY, which the driver compiles forward). An empty arch list cannot be
+    judged and is let through; the first kernel launch would report a mismatch.
     """
-    major, minor = torch.cuda.get_device_capability(index)
-    arches = torch.cuda.get_arch_list()
-    if not arches:
-        return  # nothing to compare against; the first kernel launch reports any mismatch
-    capability = major * 10 + minor
-    kernels = sorted(int(a[3:]) for a in arches if a.startswith('sm_') and a[3:].isdigit())
-    ptx = [int(a[8:]) for a in arches if a.startswith('compute_') and a[8:].isdigit()]
-    if capability in kernels or any(p <= capability for p in ptx):
-        return
-    supported = (f'{kernels[0] // 10}.{kernels[0] % 10} to {kernels[-1] // 10}.{kernels[-1] % 10}'
-                 if kernels else 'none')
-    raise RuntimeError(
-        f'{torch.cuda.get_device_name(index)} has compute capability {major}.{minor}. This build '
-        f'(PyTorch {torch.__version__}, CUDA {torch.version.cuda}) supports compute capability {supported} '
-        f'({", ".join(arches)}), so this GPU cannot be used. Run on the CPU instead: {CPU_OVERRIDE}')
+    major, minor = capability
+    kernels = sorted(int(a[3:]) for a in arch_list if a.startswith('sm_') and a[3:].isdigit())
+    ptx = [int(a[8:]) for a in arch_list if a.startswith('compute_') and a[8:].isdigit()]
+    if not arch_list:
+        return None
+    if any(k // 10 == major and k % 10 <= minor for k in kernels) or any(p <= major * 10 + minor for p in ptx):
+        return None
+    supported = f'{kernels[0] // 10}.{kernels[0] % 10} to {kernels[-1] // 10}.x' if kernels else 'none'
+    return (f'{name} has compute capability {major}.{minor}. This build (PyTorch {torch_version}, CUDA '
+            f'{cuda_version}) supports compute capability {supported} ({", ".join(arch_list)}), so this GPU cannot '
+            f'be used. Run on the CPU instead: {CPU_OVERRIDE}')
+
+
+def check_capability(torch, index=0):
+    """Stop at startup, with the plain message, on a GPU this build cannot run; never a later raw kernel error."""
+    message = unsupported_gpu_message(torch.cuda.get_device_name(index), torch.cuda.get_device_capability(index),
+                                      torch.cuda.get_arch_list(), torch.__version__, torch.version.cuda)
+    if message:
+        raise RuntimeError(message)
 
 
 def device_status():

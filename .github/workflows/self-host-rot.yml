@@ -22,6 +22,10 @@ on:
         type: choice
         options: [all, cpu, gpu-absent, gpu, gpu-unsupported]
         default: all
+      forced_failure:
+        description: 'A forced rot failure from a fixture branch: the report opens its issue, titled [forced]'
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -144,27 +148,31 @@ jobs:
 
   report:
     needs: [harness, cpu, gpu-absent, gpu, gpu-unsupported]
-    if: failure() && github.event_name != 'pull_request' && github.ref_name == 'self-host'
+    # The distribution branch, or a forced failure dispatched from a fixture branch to prove the path.
+    if: failure() && github.event_name != 'pull_request' && (github.ref_name == 'self-host' || inputs.forced_failure)
     runs-on: ubuntu-24.04
     permissions:
       issues: write
+      actions: read
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: readme-test-*
+          path: evidence
       - name: Open or update the classic distribution rot issue
         env:
           GH_TOKEN: ${{ github.token }}
           RESULTS: ${{ toJSON(needs) }}
           RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FORCED: ${{ inputs.forced_failure && '[forced] ' || '' }}
         run: |
-          failed=$(jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "- \(.key): \(.value.result)"' <<<"$RESULTS")
-          body=$(printf '%s\n\n%s\n\n%s\n%s\n' \
-            "The self-host README rot check failed on \`self-host\` ($GITHUB_EVENT_NAME, $GITHUB_SHA): $RUN" \
-            "$failed" \
-            'Owner: classic distribution workstream. Restore the pinned input where it is still obtainable; if it is gone for good, make only the minimal re-pin behind the same README-executed acceptance and state it in the README matrix. A dead upstream weight link is reported as such, not worked around. No general dependency bump.' \
-            'Evidence: the readme-test-* artifacts of the run.')
-          title='Self-host README rot check failing'
-          existing=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "in:title \"$title\"" --json number --jq '.[0].number // empty')
+          python3 self-host/rot_report.py evidence "$RESULTS" "$RUN" > body.md
+          cat body.md >> "$GITHUB_STEP_SUMMARY"
+          title="${FORCED}Self-host README rot check failing"
+          existing=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "in:title \"$title\"" --json number,title --jq "map(select(.title == \"$title\"))[0].number // empty")
           if [ -n "$existing" ]; then
-            gh issue comment "$existing" -R "$GITHUB_REPOSITORY" --body "$body"
+            gh issue comment "$existing" -R "$GITHUB_REPOSITORY" --body-file body.md
           else
-            gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+            gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body-file body.md
           fi

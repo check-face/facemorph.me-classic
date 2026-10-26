@@ -47,6 +47,11 @@ MODEL_BYTES = 381673535
 # A small encoder asset for the corruption check (refused by hash, never overwritten).
 CORRUPT_ASSET = 'shape_predictor_68_face_landmarks.dat'
 SERVING = 'Serving on http://localhost:8080'
+# What the image's torch build supports and sees, recorded on every run (arch list, capability, GPU).
+TORCH_INFO = ("import json, torch; print(json.dumps({'torch': torch.__version__, 'cuda': torch.version.cuda, "
+              "'arch_list': torch.cuda.get_arch_list(), 'cuda_available': torch.cuda.is_available(), "
+              "'capability': list(torch.cuda.get_device_capability(0)) if torch.cuda.is_available() else None, "
+              "'gpu': torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}))")
 
 
 def extract_block(readme, marker):
@@ -254,6 +259,22 @@ class Run:
             sizes['build_cache'] = total.group(1) if total else None
         self.result['disk'] = sizes
 
+    def torch_info(self, running=True):
+        """The image's torch version, CUDA version and arch list, and the GPU it sees, into result.json."""
+        command = (['exec', '-T', 'api', 'python', '-c', TORCH_INFO] if running
+                   else ['run', '--rm', '--no-deps', '--entrypoint', 'python', 'api', '-c', TORCH_INFO])
+        r = self.compose(*command, timeout=600)
+        try:
+            self.result['torch'] = json.loads(r.stdout.strip().splitlines()[-1])
+        except (ValueError, IndexError):
+            self.result['torch'] = {'error': r.stdout.strip()[-500:]}
+        self.save()
+
+    def model_files(self):
+        """name, size, inode and mtime of every file in the models volume: any download rewrites one."""
+        r = self.in_models("find /models -type f -printf '%P %s %i %T@\\n' | sort", 'models-listing.log')
+        return r.stdout.strip().splitlines() if r.returncode == 0 else None
+
     def health_and_face(self, provider):
         t = time.monotonic()
         health = self.health() or {}
@@ -326,17 +347,23 @@ class Run:
         t = time.monotonic()
         self.interrupt(process)
         down = self.compose('down', log_name='down.log')
+        before = self.model_files()
         process, log = self.start_block(script_up, 'resume')
         healthy = self.wait_healthy(process, log, self.args.restart_limit)
+        after = self.model_files()
         text = log.read_text(errors='replace')
         downloads = [int(n) for n in re.findall(r'downloaded (\d+) bytes', text)]
         reused = len(re.findall(r'reused verified', text))
         provider_ok = (self.health() or {}).get('provider') == provider
-        ok = down.returncode == 0 and healthy is not None and not any(downloads) and reused >= 2 and provider_ok
+        # Zero weight bytes: setup reports no download, and no model file was rewritten (a download replaces the
+        # file, so its inode or mtime would change).
+        unchanged = before is not None and before == after and len(before) >= 3
+        ok = (down.returncode == 0 and healthy is not None and not any(downloads) and reused >= 2 and provider_ok
+              and unchanged)
         self.result['restart_seconds'] = healthy
-        self.record(f'down then up reuses the volumes with no re-download and is healthy within '
+        self.record(f'down then up reuses the volumes with zero weight bytes downloaded and is healthy within '
                     f'{self.args.restart_limit} s', ok, t, seconds_to_healthy=healthy, downloads=downloads,
-                    reused_verified=reused, log='resume.log')
+                    reused_verified=reused, model_files_unchanged=unchanged, model_files=before, log='resume.log')
         return process
 
     def missing_terms(self, process, script_up):
@@ -414,6 +441,7 @@ class Run:
         if not process:
             return
         self.provenance()
+        self.torch_info()
         self.disk()
         self.health_and_face(provider)
         self.frontend()
@@ -424,7 +452,7 @@ class Run:
         process = self.kill_during_setup(script_up, provider)
         self.corrupt_asset(process, script_up)
 
-    def expect_failure(self, script, name, patterns, limit):
+    def expect_failure(self, script, name, patterns, limit, forbid=()):
         t = time.monotonic()
         process, log = self.start_block(script, 'quickstart')
         try:
@@ -436,10 +464,11 @@ class Run:
         api_logs = self.compose('logs', '--no-color', 'api', log_name='api.log').stdout
         state = self.compose('ps', '-a', '--format', '{{.State}}', 'api').stdout.strip()
         matched = [p for p in patterns if re.search(p, text + api_logs, re.I)]
-        ok = (process.returncode not in (0, None) and len(matched) == len(patterns)
+        forbidden = [p for p in forbid if re.search(p, text + api_logs, re.I)]
+        ok = (process.returncode not in (0, None) and len(matched) == len(patterns) and not forbidden
               and '"provider":"cpu"' not in api_logs and SERVING not in text)
-        self.record(name, ok, t, exit=process.returncode, matched=matched, api_state=state or 'not created',
-                    log='quickstart.log')
+        self.record(name, ok, t, exit=process.returncode, matched=matched, forbidden_found=forbidden,
+                    api_state=state or 'not created', log='quickstart.log')
 
     def run(self):
         block = extract_block(self.args.readme, MARKERS[self.args.mode])
@@ -464,7 +493,9 @@ class Run:
             elif self.args.mode == 'gpu-unsupported':
                 self.expect_failure(script, 'an unsupported GPU stops at the capability check with a plain message',
                                     [r'has compute capability \d+\.\d+', r'supports compute capability',
-                                     r'docker compose -f self-host/compose.yml up'], self.args.first_run_limit)
+                                     r'docker compose -f self-host/compose.yml up'], self.args.first_run_limit,
+                                    forbid=[r'no kernel image'])
+                self.torch_info(running=False)
                 self.cpu_on_same_host()
         except (Exception, KeyboardInterrupt) as error:  # noqa: BLE001 - recorded as a failed run, then cleaned up
             self.record('harness completed', False, time.monotonic(), error=f'{type(error).__name__}: {error}')

@@ -1,10 +1,12 @@
 """The README-is-the-test harness's own logic: block extraction, the only allowed substitutions, JPEG sizing."""
+import json
 import struct
 import tempfile
 import unittest
 from pathlib import Path
 
 import readme_test
+import rot_report
 
 README = Path(__file__).resolve().parent / 'README.md'
 
@@ -56,6 +58,35 @@ class JpegTests(unittest.TestCase):
 
     def test_not_a_jpeg(self):
         self.assertIsNone(readme_test.jpeg_size(b'\x89PNG\r\n'))
+
+
+class RotReportTests(unittest.TestCase):
+    def test_issue_names_the_failed_assertion_and_the_pinned_input(self):
+        with tempfile.TemporaryDirectory() as root:
+            cell = Path(root) / 'readme-test-cpu-ubuntu-24.04'
+            cell.mkdir()
+            (cell / 'result.json').write_text(json.dumps({
+                'commit': 'abc1234', 'run_kind': 'development', 'environment': {'host': 'runner'},
+                'assertions': [
+                    {'name': 'first run: build from empty cache, download and verify, healthy, URL logged',
+                     'passed': False, 'seconds': 1, 'downloaded_bytes': 0},
+                    {'name': '/healthz reports provider cpu', 'passed': True, 'seconds': 0}]}))
+            (cell / 'quickstart.log').write_text(
+                'setup-1  | ValueError: Official download did not match deployed checksum: '
+                'shape_predictor_68_face_landmarks.dat\n')
+            body = rot_report.report(root, {'cpu': {'result': 'failure'}, 'gpu': {'result': 'skipped'}}, 'RUN')
+        self.assertIn('**Failed jobs:** cpu: failure', body)
+        self.assertIn('first run: build from empty cache', body)
+        self.assertNotIn('/healthz reports provider cpu', body)
+        self.assertIn('model checksum pin: `Official download did not match deployed checksum: '
+                      'shape_predictor_68_face_landmarks.dat`', body)
+        self.assertIn('No general dependency bump', body)
+
+    def test_a_cell_without_results_is_reported_as_not_started(self):
+        with tempfile.TemporaryDirectory() as root:
+            (Path(root) / 'readme-test-gpu-rtx2080s').mkdir()
+            body = rot_report.report(root, {'gpu': {'result': 'failure'}}, 'RUN')
+        self.assertIn('the harness did not start', body)
 
 
 if __name__ == '__main__':

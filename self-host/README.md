@@ -56,7 +56,7 @@ and run the command again.
 
 `/healthz` must report `"provider":"cuda"` and your GPU name. GPU mode fails startup
 if CUDA cannot be used; it never silently selects CPU. A GPU outside the architectures
-the PyTorch wheels were built for (compute capability 7.0 to 12.0: Volta to Blackwell)
+the PyTorch wheels were built for (compute capability 7.0 to 12.x: Volta to Blackwell)
 stops at startup with a message naming the card, its compute capability and the
 supported range; use the CPU alternative on such a host. Setup downloads about 1.7 GB
 of original model assets from their authors, checks byte counts and SHA-256 hashes,
@@ -216,6 +216,22 @@ opens one issue for the classic distribution: restore the pinned input, or make 
 minimal re-pin, and never a general dependency bump. A dead upstream weight link is
 reported as such, not worked around.
 
+### GPU support
+
+| | Supported | Tested (dated rows in the matrix below) |
+|---|---|---|
+| Compute capability | 7.0 to 12.x (Volta, Turing, Ampere, Ada, Hopper, Blackwell): the pinned torch 2.9.1+cu128 wheels ship `sm_70, sm_75, sm_80, sm_86, sm_90, sm_100, sm_120` | 7.5 (RTX 2080 SUPER) |
+| Driver | Linux 570 or newer (CUDA 12.8) | 610.57.04 |
+| Pascal (6.x) and older | CPU only: the startup check names the card, its capability and the supported range, then exits; use the CPU block | 6.1 refusal: see the Pascal row when it has run |
+| Blackwell (12.x) | supported by the arch list | untested: the README-executed acceptance runs on the newest generation once before a release tag |
+
+**The one allowed unfreeze.** When a new GPU generation is missing from the pinned
+wheels' arch list, the torch and CUDA pin may be bumped, and nothing else. That
+change must pass this same README-executed acceptance, and this table must state the
+new range, including any older generation the newer wheels drop (the lower bound
+moves). It is the only dependency change the frozen distribution allows besides the
+minimal re-pin of an input that is gone for good.
+
 ### Validated matrix
 
 Only cells that actually ran are listed. Records: [validation/2026-10-26](validation/2026-10-26/).
@@ -241,9 +257,12 @@ branch in place of `self-host`, its one logged substitution.
 **On CPU hosted runners:** a 2.6 to 3.0 GB image and 2.4 to 2.9 GB of build cache.
 
 **Untested:**
-- the GTX 1050 (Pascal) cell, and any other NVIDIA GPU;
-- GPUs older than Volta, which the startup check refuses, and Jetson;
-- Windows, WSL2 and macOS.
+- every NVIDIA GPU other than the RTX 2080 SUPER, including Blackwell, which is
+  needed once before a release tag on a machine the operator supplies or approves
+  renting;
+- the TrueNAS GTX 1050, an optional extra Pascal cell: its runner user cannot reach
+  Docker without sudo;
+- Jetson, Windows, WSL2 and macOS.
 
 **Not guaranteed:**
 - GPUs older than Volta (compute capability below 7.0), or newer than the kernels and
