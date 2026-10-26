@@ -6,7 +6,7 @@ from pathlib import Path
 import urllib.request
 
 SOURCE_URL = 'https://nvlabs-fi-cdn.nvidia.com/stylegan2/networks/stylegan2-ffhq-config-f.pkl'
-SOURCE_SHA256 = 'adf127ea7bb8a7788c8bdeda3c9937f7310b669b09ecf799ca53a631ff46948d'
+SOURCE_SHA256 = '0000000000000000000000000000000000000000000000000000000000000000'
 SOURCE_BYTES = 381673535
 MODEL_NAME = 'stylegan2-ffhq-config-f.pkl'
 STYLEGAN_REV = 'd72cc7d041b42ec8e806021a205ed9349f87c6a4'
