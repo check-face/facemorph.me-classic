@@ -50,10 +50,15 @@ API. When it is healthy it logs `Serving on http://localhost:8080`; open
 **http://localhost:8080** for the original UI. To acknowledge the terms once per
 shell instead of per command, `export ACCEPT_MODEL_TERMS=yes` first. Stopping with
 Ctrl-C and running `ACCEPT_MODEL_TERMS=yes docker compose up` again resumes: setup
-reuses verified files and replaces anything interrupted or corrupt.
+reuses verified files and restarts an interrupted download. A file that fails its hash
+is refused and left in place (setup names it and the API does not start): move it aside
+and run the command again.
 
 `/healthz` must report `"provider":"cuda"` and your GPU name. GPU mode fails startup
-if CUDA cannot be used; it never silently selects CPU. Setup downloads about 1.7 GB
+if CUDA cannot be used; it never silently selects CPU. A GPU outside the architectures
+the PyTorch wheels were built for (compute capability 7.0 to 12.0: Volta to Blackwell)
+stops at startup with a message naming the card, its compute capability and the
+supported range; use the CPU alternative on such a host. Setup downloads about 1.7 GB
 of original model assets from their authors, checks byte counts and SHA-256 hashes,
 and reuses verified files on repeat runs. No service account or API key is needed.
 
@@ -74,9 +79,15 @@ or GPU UUID from `nvidia-smi`). Do not specify both `count` and `device_ids`.
 Run the same checkout without the GPU overlay (the root `compose.yaml` includes it by
 default, so point Compose at the base file explicitly):
 
+<!-- readme-cpu: begin. The README-is-the-test harness (fm-fy2.16) runs this block verbatim, like the quickstart. -->
+
 ```sh
+git clone --branch self-host https://github.com/facemorph-me/facemorph.me-classic.git facemorph.me
+cd facemorph.me
 ACCEPT_MODEL_TERMS=yes docker compose -f self-host/compose.yml up
 ```
+
+<!-- readme-cpu: end -->
 
 The default Compose file builds CPU PyTorch; no NVIDIA driver or GPU is needed.
 CPU generation is slower, especially long animations. CPU Linux

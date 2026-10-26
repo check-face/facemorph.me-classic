@@ -1,0 +1,134 @@
+name: Self-host README rot check
+# fm-fy2.16: the README is the test. self-host/readme_test.py runs the README's marked quickstart and CPU blocks
+# verbatim, from a clean clone into empty volumes with a fresh build cache, and checks what the README promises.
+# A failure on the distribution branch (a push, the monthly run or a dispatch) opens or updates one issue for the
+# classic distribution workstream. Classic is frozen: a rot failure is fixed by restoring the pinned input, or by the
+# minimal re-pin of an input that is gone for good behind this same acceptance; never by a general dependency bump.
+# A dead upstream weight link is reported as such, not worked around.
+#
+# Scheduled workflows run from the default branch's files: the monthly run starts once self-host is the default.
+on:
+  push:
+    branches: [self-host]
+    paths: ['compose.yaml', 'self-host/**', '.github/workflows/self-host-rot.yml']
+  pull_request:
+    paths: ['compose.yaml', 'self-host/**', '.github/workflows/self-host-rot.yml']
+  schedule:
+    - cron: '23 4 1 * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: self-host-rot-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  # A canonical run clones exactly what the README names. Any other ref is a development run: the harness clones this
+  # repository at that ref instead, the only substitution it allows, logged and labelled in result.json.
+  DEV_ARGS: >-
+    ${{ (github.event_name == 'pull_request' || github.ref_name != 'self-host')
+        && format('--repo {0}/{1}.git --branch {2}', github.server_url, github.repository, github.head_ref || github.ref_name)
+        || '' }}
+jobs:
+  harness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: cd self-host && python3 -m unittest test_readme_test
+
+  cpu:
+    # The CPU cells: hosted Linux amd64 and arm64.
+    needs: harness
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - name: README CPU block, verbatim, from an empty directory
+        run: python3 self-host/readme_test.py --mode cpu --out evidence --min-free-gib 12 $DEV_ARGS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: readme-test-cpu-${{ matrix.runner }}
+          path: evidence/
+          retention-days: 30
+
+  gpu-absent:
+    # A host without an NVIDIA runtime: the quickstart fails clearly at the GPU reservation, never on CPU.
+    needs: harness
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 self-host/readme_test.py --mode gpu-absent --out evidence --min-free-gib 12 $DEV_ARGS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: readme-test-gpu-absent
+          path: evidence/
+          retention-days: 30
+
+  gpu:
+    # The planned CUDA cell: RTX 2080 SUPER (Turing) on the workstation. Not on pull requests: the workstation is a
+    # shared device, so the GPU acceptance runs on the distribution branch, monthly, or on dispatch.
+    needs: harness
+    if: github.event_name != 'pull_request'
+    runs-on: [self-hosted, gpu-rtx2080s]
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - name: README quickstart, verbatim, CUDA
+        run: python3 self-host/readme_test.py --mode gpu --out evidence --workdir "$RUNNER_TEMP" $DEV_ARGS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: readme-test-gpu-rtx2080s
+          path: evidence/
+          retention-days: 90
+
+  gpu-unsupported:
+    # Pascal GTX 1050 (compute capability 6.1), outside the cu128 wheels' kernels: the default CUDA start must stop
+    # at the capability check with its plain message, and the CPU override must then serve a face on the same host.
+    needs: harness
+    if: github.event_name != 'pull_request'
+    runs-on: [self-hosted, gpu-gtx1050]
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 self-host/readme_test.py --mode gpu-unsupported --out evidence --workdir "$RUNNER_TEMP" --min-free-gib 30 $DEV_ARGS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: readme-test-gpu-gtx1050
+          path: evidence/
+          retention-days: 90
+
+  report:
+    needs: [harness, cpu, gpu-absent, gpu, gpu-unsupported]
+    if: failure() && github.event_name != 'pull_request' && github.ref_name == 'self-host'
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the classic distribution rot issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULTS: ${{ toJSON(needs) }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          failed=$(jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "- \(.key): \(.value.result)"' <<<"$RESULTS")
+          body=$(printf '%s\n\n%s\n\n%s\n%s\n' \
+            "The self-host README rot check failed on \`self-host\` ($GITHUB_EVENT_NAME, $GITHUB_SHA): $RUN" \
+            "$failed" \
+            'Owner: classic distribution workstream. Restore the pinned input where it is still obtainable; if it is gone for good, make only the minimal re-pin behind the same README-executed acceptance and state it in the README matrix. A dead upstream weight link is reported as such, not worked around. No general dependency bump.' \
+            'Evidence: the readme-test-* artifacts of the run.')
+          title='Self-host README rot check failing'
+          existing=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "in:title \"$title\"" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" -R "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+          fi
