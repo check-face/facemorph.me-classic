@@ -1,0 +1,42 @@
+{
+  "harness": "self-host/readme_test.py",
+  "mode": "gpu-absent",
+  "project": "readmetest-gpu-absent-20261026t173825",
+  "started": "2026-10-26T17:38:25Z",
+  "assertions": [
+    {
+      "name": "no NVIDIA runtime: the quickstart fails clearly and never serves on CPU",
+      "passed": true,
+      "seconds": 854.4,
+      "exit": 1,
+      "matched": [
+        "could not select device driver|nvidia"
+      ],
+      "api_state": "created",
+      "log": "quickstart.log"
+    }
+  ],
+  "environment": {
+    "host": "runnervmtai0g",
+    "os": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "arch": "x86_64",
+    "docker": "28.0.4",
+    "compose": "2.38.2",
+    "nvidia_smi": "not installed",
+    "docker_nvidia_runtime": false
+  },
+  "block": "git clone --branch self-host https://github.com/facemorph-me/facemorph.me-classic.git facemorph.me\ncd facemorph.me\nACCEPT_MODEL_TERMS=yes docker compose up\n",
+  "substitutions": [
+    "branch self-host -> fm-fy2.16-readme-test"
+  ],
+  "run_kind": "development",
+  "isolation": {
+    "COMPOSE_PROJECT_NAME": "readmetest-gpu-absent-20261026t173825",
+    "CHECKFACE_PORT": 47075,
+    "BUILDX_BUILDER": "readmetest-gpu-absent-20261026t173825-builder"
+  },
+  "docker_root_free_gib": 85.3,
+  "finished": "2026-10-26T17:52:49Z",
+  "passed": true,
+  "evidence": "https://github.com/facemorph-me/facemorph.me-classic/actions/runs/40368403299"
+}

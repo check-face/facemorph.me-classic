@@ -1,0 +1,216 @@
+{
+  "harness": "self-host/readme_test.py",
+  "mode": "gpu",
+  "project": "readmetest-gpu-20261027t044736",
+  "started": "2026-10-26T18:47:36Z",
+  "assertions": [
+    {
+      "name": "first run: build from empty cache, download and verify, healthy, URL logged",
+      "passed": true,
+      "seconds": 2050.8,
+      "seconds_to_healthy": 2050.8,
+      "downloaded_bytes": 1683017152,
+      "serving_logged": true,
+      "log": "quickstart.log"
+    },
+    {
+      "name": "/healthz reports provider cuda and the GPU name",
+      "passed": true,
+      "seconds": 0.0,
+      "health": {
+        "ready": true,
+        "provider": "cuda",
+        "gpu": "NVIDIA GeForce RTX 2080 SUPER",
+        "gpu_capability": [
+          7,
+          5
+        ],
+        "cuda_version": "12.8",
+        "torch_version": "2.9.1+cu128"
+      }
+    },
+    {
+      "name": "/api/face/?seed=0&dim=512 returns a 512x512 JPEG",
+      "passed": true,
+      "seconds": 2.2,
+      "status": 200,
+      "content_type": "image/jpg",
+      "bytes": 28506,
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "name": "the original UI renders a face in a browser",
+      "passed": true,
+      "seconds": 10.8,
+      "face_images": [
+        {
+          "src": "/api/face/?dim=300&amp;value=2026-10-27&amp;format=jpg",
+          "status": 200,
+          "type": "image/jpg",
+          "size": [
+            300,
+            300
+          ]
+        },
+        {
+          "src": "/api/face/?dim=300&amp;value=hello&amp;format=jpg",
+          "status": 200,
+          "type": "image/jpg",
+          "size": [
+            300,
+            300
+          ]
+        }
+      ],
+      "screenshot": "frontend.png",
+      "dom": "frontend-dom.html"
+    },
+    {
+      "name": "smoke_frontend.py: original UI assets, SPA paths and local oEmbed",
+      "passed": true,
+      "seconds": 0.5,
+      "exit": 0,
+      "tail": [
+        "{\"original_ui_static_assets\": 4, \"spa_paths\": true, \"local_oembed\": true}"
+      ],
+      "log": "smoke_frontend.py.log"
+    },
+    {
+      "name": "test_legacy_contract.py: old seed/text semantics and the deployed route and latent contract",
+      "passed": true,
+      "seconds": 10.1,
+      "exit": 0,
+      "tail": [
+        "OK"
+      ],
+      "log": "test_legacy_contract.py.log"
+    },
+    {
+      "name": "smoke_legacy.py: photo, morph and media endpoints (faces, morph frames, GIF/WebP/MP4, previews)",
+      "passed": true,
+      "seconds": 24.2,
+      "exit": 0,
+      "tail": [
+        "{\"result\": \"pass\", \"checks\": [\"status/queue/upload form\", \"deployed seed/text identity\", \"register/read GUID and imported legacy BSON UUID\", \"JPEG/WebP/default/legacy image routes and conditional cache\", \"weighted Z/mixed W+ blends and mixed-space interpolation\", \"classic trig deduplication and linear endpoint frames\", \"GIF/animated WebP/MP4 codecs, cache, byte ranges, embed HTML and link preview\", \"multipart encoding, aligned reference W+, reconstruction and aligned/unaligned GUID cache\", \"responsive health under queued inference, bounded admission and recovery\"], \"reference_jpeg_max_error\": 7, \"reference_jpeg_mean_error\": 0.006014506022135417, \"guid\": \"cc90145f-f203-4945-b4ea-3b7eb9c55e02\"}"
+      ],
+      "log": "smoke_legacy.py.log"
+    },
+    {
+      "name": "smoke_encoder_http.py: photo upload, alignment and e4e encoding over HTTP",
+      "passed": true,
+      "seconds": 2.9,
+      "exit": 0,
+      "tail": [
+        "{\"multipart_face_alignment\": true, \"max_encoder_reference_error\": 4.112720489501953e-06, \"repeat_guid_dedup\": true, \"unaligned_default\": true, \"no_face_fallback\": true, \"w_plus_retrieval\": true, \"reconstruction_and_mixed_morph\": true, \"previous_receipt_survived\": false, \"receipt\": \"/app/checkfacedata/self-host-encoder-validation.json\"}"
+      ],
+      "log": "smoke_encoder_http.py.log"
+    },
+    {
+      "name": "smoke_gpu.py: CUDA in the container and an uncached face over HTTP",
+      "passed": true,
+      "seconds": 4.5,
+      "exit": 0,
+      "tail": [
+        "{\"health\": {\"cpu_threads\": {\"available_cpus\": 12, \"default_max\": 8, \"effective_threads\": 8, \"limited_by_allocation\": false, \"requested\": \"auto\"}, \"cuda_version\": \"12.8\", \"generation_capacity\": 8, \"gpu\": \"NVIDIA GeForce RTX 2080 SUPER\", \"gpu_capability\": [7, 5], \"original_cache\": {\"generated\": 21, \"hits\": 15, \"write_failures\": 0}, \"provider\": \"cuda\", \"queue\": 0, \"ready\": true, \"torch_version\": \"2.9.1+cu128\"}, \"seed\": 3929489864, \"jpeg_bytes\": 31684, \"cuda_tensor\": true}"
+      ],
+      "log": "smoke_gpu.py.log"
+    },
+    {
+      "name": "down then up reuses the volumes with no re-download and is healthy within 600 s",
+      "passed": true,
+      "seconds": 40.4,
+      "seconds_to_healthy": 25.0,
+      "downloads": [],
+      "reused_verified": 3,
+      "log": "resume.log"
+    },
+    {
+      "name": "missing terms acknowledgement fails fast with the refusal and no API",
+      "passed": true,
+      "seconds": 18.6,
+      "exit": 1,
+      "api_state": "created",
+      "command": "docker compose up",
+      "log": "missing-terms.log"
+    },
+    {
+      "name": "a setup killed mid-download recovers: the README command re-fetches, verifies and serves",
+      "passed": true,
+      "seconds": 26.8,
+      "partial_bytes_at_kill": 34078720,
+      "killed": true,
+      "seconds_to_healthy": 20.0,
+      "log": "kill-recover.log"
+    },
+    {
+      "name": "a corrupted asset is rejected by hash, never loaded or overwritten; moved aside, setup re-fetches",
+      "passed": true,
+      "seconds": 44.1,
+      "exit": 1,
+      "api_state": "created",
+      "refused": true,
+      "left_in_place": true,
+      "recovered": true,
+      "log": "corrupt-up.log"
+    }
+  ],
+  "environment": {
+    "host": "eris",
+    "os": "Linux-7.2.5-3-omarchy-x86_64-with-glibc2.44",
+    "arch": "x86_64",
+    "docker": "29.7.2",
+    "compose": "5.5.1",
+    "nvidia_smi": "NVIDIA GeForce RTX 2080 SUPER, 610.57.04, 7.5, 8192 MiB",
+    "docker_nvidia_runtime": true
+  },
+  "block": "git clone --branch self-host https://github.com/facemorph-me/facemorph.me-classic.git facemorph.me\ncd facemorph.me\nACCEPT_MODEL_TERMS=yes docker compose up\n",
+  "substitutions": [
+    "branch self-host -> fm-fy2.16-readme-test"
+  ],
+  "run_kind": "development",
+  "isolation": {
+    "COMPOSE_PROJECT_NAME": "readmetest-gpu-20261027t044736",
+    "CHECKFACE_PORT": 33315,
+    "BUILDX_BUILDER": "readmetest-gpu-20261027t044736-builder"
+  },
+  "docker_root_free_gib": 41.8,
+  "first_run_seconds": 2050.8,
+  "commit": "716cfaf28f0975a06904fd845c6417139ef4332b",
+  "images": {
+    "setup": {
+      "id": "sha256:8acd0cda49ead60e4fe776525284ec24425920650612e30489c829e1f529f0bf",
+      "repo_digests": [
+        "readmetest-gpu-20261027t044736-setup@sha256:8acd0cda49ead60e4fe776525284ec24425920650612e30489c829e1f529f0bf"
+      ],
+      "size_bytes": 4581441491
+    },
+    "api": {
+      "id": "sha256:4984a5c352be353f405b59a4ccba27285f17715d64783cd81f630e1aca1e79b5",
+      "repo_digests": [
+        "readmetest-gpu-20261027t044736-api@sha256:4984a5c352be353f405b59a4ccba27285f17715d64783cd81f630e1aca1e79b5"
+      ],
+      "size_bytes": 4581441489
+    },
+    "db": {
+      "id": "sha256:cf340b1e5283843c63eb12999922f20c463ae31285f746d30f05dcc21cd1d47c",
+      "repo_digests": [
+        "mongo@sha256:cf340b1e5283843c63eb12999922f20c463ae31285f746d30f05dcc21cd1d47c"
+      ],
+      "size_bytes": 298409848
+    }
+  },
+  "disk": {
+    "volume_models_bytes": 1683018970,
+    "volume_database_bytes": 210009281,
+    "volume_cache_bytes": 21042,
+    "images_bytes": 9461292828,
+    "build_cache": "1.302GB"
+  },
+  "restart_seconds": 25.0,
+  "finished": "2026-10-26T19:25:34Z",
+  "passed": true,
+  "evidence": "local run on the workstation under autoresearch/run.py --timeout 3600; logs retained outside Git"
+}

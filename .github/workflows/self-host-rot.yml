@@ -16,6 +16,12 @@ on:
   schedule:
     - cron: '23 4 1 * *'
   workflow_dispatch:
+    inputs:
+      cell:
+        description: 'One cell only (cpu, gpu-absent, gpu, gpu-unsupported), or all'
+        type: choice
+        options: [all, cpu, gpu-absent, gpu, gpu-unsupported]
+        default: all
 permissions:
   contents: read
 concurrency:
@@ -39,6 +45,7 @@ jobs:
   cpu:
     # The CPU cells: hosted Linux amd64 and arm64.
     needs: harness
+    if: (inputs.cell || 'all') == 'all' || inputs.cell == 'cpu'
     strategy:
       fail-fast: false
       matrix:
@@ -63,6 +70,7 @@ jobs:
   gpu-absent:
     # A host without an NVIDIA runtime: the quickstart fails clearly at the GPU reservation, never on CPU.
     needs: harness
+    if: (inputs.cell || 'all') == 'all' || inputs.cell == 'gpu-absent'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -81,7 +89,7 @@ jobs:
     # disk is tight, so the GPU cells run only monthly and on dispatch, never per push or pull request; the harness
     # refuses to start below 35 GiB free and removes the image, volumes and build cache when it ends.
     needs: harness
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (inputs.cell == 'all' || inputs.cell == 'gpu'))
     runs-on: [self-hosted, gpu-rtx2080s]
     timeout-minutes: 240
     steps:
@@ -109,7 +117,7 @@ jobs:
     # Pascal GTX 1050 (compute capability 6.1), outside the cu128 wheels' kernels: the default CUDA start must stop
     # at the capability check with its plain message, and the CPU override must then serve a face on the same host.
     needs: harness
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (inputs.cell == 'all' || inputs.cell == 'gpu-unsupported'))
     runs-on: [self-hosted, gpu-gtx1050]
     timeout-minutes: 240
     steps:
