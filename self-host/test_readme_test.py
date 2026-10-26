@@ -72,14 +72,20 @@ class RotReportTests(unittest.TestCase):
                      'passed': False, 'seconds': 1, 'downloaded_bytes': 0},
                     {'name': '/healthz reports provider cpu', 'passed': True, 'seconds': 0}]}))
             (cell / 'quickstart.log').write_text(
+                "setup-1  |     raise ValueError(f'Official download did not match deployed checksum: {name}')\n"
                 'setup-1  | ValueError: Official download did not match deployed checksum: '
-                'shape_predictor_68_face_landmarks.dat\n')
+                'shape_predictor_68_face_landmarks.dat\n'
+                '#12 [setup runtime-deps 3/6] RUN python -c "urllib.request.urlretrieve(...)" '
+                '"https://github.com/NVlabs/stylegan2-ada-pytorch/archive/d72cc7d.tar.gz" && echo "e0  x" | sha256sum -c\n')
             body = rot_report.report(root, {'cpu': {'result': 'failure'}, 'gpu': {'result': 'skipped'}}, 'RUN')
         self.assertIn('**Failed jobs:** cpu: failure', body)
         self.assertIn('first run: build from empty cache', body)
         self.assertNotIn('/healthz reports provider cpu', body)
         self.assertIn('model checksum pin: `Official download did not match deployed checksum: '
                       'shape_predictor_68_face_landmarks.dat`', body)
+        self.assertNotIn('{name}', body)
+        self.assertNotIn('NVlabs', body)
+        self.assertNotIn('setup-1', body)
         self.assertIn('No general dependency bump', body)
 
     def test_a_cell_without_results_is_reported_as_not_started(self):

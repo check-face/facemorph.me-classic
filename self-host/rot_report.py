@@ -20,7 +20,8 @@ PINNED = [
      'hash-locked Python dependency (requirements-*.lock)'),
     (r'[^\n]*(?:manifest unknown|not found: manifest|failed to resolve source metadata)[^\n]*',
      'base image pinned by digest'),
-    (r'[^\n]*stylegan[^\n]*(?:sha256|checksum|404)[^\n]*', 'NVlabs stylegan2-ada-pytorch archive pin'),
+    (r'[^\n]*stylegan\.tar\.gz: FAILED[^\n]*|[^\n]*stylegan2-ada-pytorch/archive[^\n]*HTTP Error[^\n]*',
+     'NVlabs stylegan2-ada-pytorch archive pin'),
     (r'[^\n]*(?:HTTP Error 404|HTTP Error 403|Name or service not known|urlopen error)[^\n]*',
      'upstream host (a dead weight link is reported, not worked around)'),
 ]
@@ -33,6 +34,9 @@ def pinned_inputs(cell_dir):
         for pattern, what in PINNED:
             for m in re.finditer(pattern, text):
                 line = m.group(0).strip()[:300]
+                if '{' in line or line.lstrip().startswith('raise '):
+                    continue  # a traceback's source line, not the failure it reports
+                line = re.sub(r'^[\w.-]+-\d+\s+\|\s+', '', line)  # drop the Compose service prefix
                 if (what, line) not in seen:
                     seen.add((what, line))
                     found.append((what, line, log.name))

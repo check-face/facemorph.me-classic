@@ -234,6 +234,8 @@ class Run:
         process, log = self.start_block(script, 'quickstart')
         healthy = self.wait_healthy(process, log, self.args.first_run_limit)
         self.checkout = self.workdir / 'facemorph.me'
+        if self.checkout.exists():  # the commit under test, even when the first run fails
+            self.result['commit'] = self.sh(['git', 'rev-parse', 'HEAD']).stdout.strip()
         text = log.read_text(errors='replace')
         downloads = [int(n) for n in re.findall(r'downloaded (\d+) bytes', text)]
         self.result['first_run_seconds'] = healthy
