@@ -41,6 +41,10 @@ test('The estimator predicts only from measurement and speaks the slow-run warni
  assert.equal(faceOnly.frameMs(),1000,'a frame is one synthesis too: fall back to the face figure');
  assert.equal(describeMs(75*1000),'about 75 seconds');
  assert.equal(describeMs(1000),'about 1 second');
+ assert.equal(describeMs(1400),'about 1 second','rounds to one: singular');
+ assert.equal(describeMs(2000),'about 2 seconds');
+ assert.equal(describeMs(60*1000),'about 60 seconds');
+ assert.equal(describeMs(30*60*1000),'about 30 minutes');
  assert.equal(describeMs(90*1000),'about 2 minutes');
  assert.equal(isSlowJob(30000),false,'exactly at the threshold is not slow');
  assert.equal(isSlowJob(30001),true,'just over it warns');

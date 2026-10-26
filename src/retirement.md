@@ -12,7 +12,7 @@ Once the new experience is ready, a banner on classic Facemorph will explicitly 
 
 Both will run for **at least four weeks after that public invitation goes live**. A local demo or an isolated deployment does not start the clock. We will review feedback during the trial, explain the remaining differences and publish the outcome before making the final transition.
 
-The current API retirement target is **October 25, 2026 (AEST)**. It is subject to preservation and trial readiness. If the work needs more time, we will revise the target rather than shorten the comparison period or switch the service off automatically.
+The operator decides when the old API retires; there is no fixed date.
 
 ## What this preview covers
 
@@ -44,8 +44,8 @@ Classic remains available alongside the new experience for at least four weeks a
 
 ---
 
-#### Will the API and old links work exactly as before?
-That is not established. Preserving old artifacts and links is a separate requirement from generating similar faces with a converted model. We need archive and restore evidence, plus a decision about every retained workflow, before removing the current backend.
+#### Do old links still work?
+No. Old GUIDs, results and links are not preserved, and the new site has no share links; save the image or video you want to keep.
 
 ---
 
