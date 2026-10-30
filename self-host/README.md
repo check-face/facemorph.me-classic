@@ -221,8 +221,8 @@ reported as such, not worked around.
 | | Supported | Tested (dated rows in the matrix below) |
 |---|---|---|
 | Compute capability | 7.0 to 12.x (Volta, Turing, Ampere, Ada, Hopper, Blackwell): the pinned torch 2.9.1+cu128 wheels ship `sm_70, sm_75, sm_80, sm_86, sm_90, sm_100, sm_120` | 7.5 (RTX 2080 SUPER) |
-| Driver | Linux 570 or newer (CUDA 12.8) | 610.57.04 |
-| Pascal (6.x) and older | CPU only: the startup check names the card, its capability and the supported range, then exits; use the CPU block | untested: the Pascal host (GTX 1080, 6.1) runs driver 470.256.02, older than the 570 these wheels need, so PyTorch sees no CUDA and stops with "CUDA requested but unavailable … check your host driver" before the capability check can run. The 570 and 580 driver branches still support Pascal. |
+| Driver | Linux 570 or newer (CUDA 12.8) | 610.57.04; 580.126.09 (Pascal refusal only) |
+| Pascal (6.x) and older | CPU only: the startup check names the card, its capability and the supported range, then exits; use the CPU block | 6.1 (GTX 1080, driver 580.126.09): the default CUDA start stops at the capability check with the plain message, and the CPU override serves a face |
 | Blackwell (12.x) | supported by the arch list | untested: the README-executed acceptance runs on the newest generation once before a release tag |
 
 **The one allowed unfreeze.** When a new GPU generation is missing from the pinned
@@ -234,7 +234,8 @@ minimal re-pin of an input that is gone for good.
 
 ### Validated matrix
 
-Only cells that actually ran are listed. Records: [validation/2026-10-26](validation/2026-10-26/).
+Only cells that actually ran are listed. Records: [validation/2026-10-26](validation/2026-10-26/); the Pascal row is
+[run 41002087346](https://github.com/facemorph-me/facemorph.me-classic/actions/runs/41002087346) (artifact `readme-test-gpu-gtx1080`).
 
 | Cell | Host | Docker / Compose | Driver / GPU | Commit | Date | First run to healthy | Result |
 |---|---|---|---|---|---|---|---|
@@ -242,8 +243,9 @@ Only cells that actually ran are listed. Records: [validation/2026-10-26](valida
 | CPU block, amd64 | GitHub-hosted Ubuntu 24.04 | 28.0.4 / 2.38.2 | none | `f493212` | 2026-10-26 | 565 s | 12/12 |
 | CPU block, arm64 | GitHub-hosted Ubuntu 24.04 arm64 | 28.0.4 / 2.38.2 | none | `f493212` | 2026-10-26 | 440 s | 12/12 |
 | Quickstart without an NVIDIA runtime | GitHub-hosted Ubuntu 24.04 | 28.0.4 / 2.38.2 | none | `f493212` | 2026-10-26 | fails clearly, no CPU | 1/1 |
+| Quickstart on Pascal (refusal), then CPU override | Ubuntu 20.04 (kernel 5.4), x86-64 | 24.0.2 / 2.29.7 (job-local) | 580.126.09 / GTX 1080 (Pascal, 6.1) | `26cf606` | 2026-10-30 | refused in 121 s; CPU override healthy in 20 s | 4/4 |
 
-These were development runs of this branch before merge: the harness cloned the PR
+The 26 October rows were development runs of this branch before merge: the harness cloned the PR
 branch in place of `self-host`, its one logged substitution.
 
 **Measured on the CUDA run:**
@@ -257,9 +259,7 @@ branch in place of `self-host`, its one logged substitution.
 **On CPU hosted runners:** a 2.6 to 3.0 GB image and 2.4 to 2.9 GB of build cache.
 
 **Untested:**
-- the Pascal refusal on real hardware: the GTX 1080 host needs a 570 or 580 driver
-  first (it has 470.256.02);
-- every NVIDIA GPU other than the RTX 2080 SUPER, including Blackwell, which is
+- serving on any NVIDIA GPU other than the RTX 2080 SUPER, including Blackwell, which is
   needed once before a release tag on a machine the operator supplies or approves
   renting;
 - the TrueNAS GTX 1050, an optional extra Pascal cell: its runner user cannot reach
