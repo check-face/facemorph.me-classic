@@ -175,6 +175,12 @@ class Run:
             time.sleep(5)
         return None
 
+    def api_exited(self):
+        """True once this run's API container exists and has stopped (it has no restart policy)."""
+        r = self.sh(['docker', 'ps', '-a', '--filter', f'label=com.docker.compose.project={self.project}',
+                     '--filter', 'label=com.docker.compose.service=api', '--format', '{{.State}}'], timeout=60)
+        return r.stdout.strip() == 'exited'
+
     def interrupt(self, process):
         """Ctrl-C, as the README's stop instruction: SIGINT to the foreground compose, then wait for it."""
         if process.poll() is None:
@@ -473,10 +479,12 @@ class Run:
     def expect_failure(self, script, name, patterns, limit, forbid=()):
         t = time.monotonic()
         process, log = self.start_block(script, 'quickstart')
-        try:
-            process.wait(timeout=limit)
-        except subprocess.TimeoutExpired:
-            self.interrupt(process)
+        # A foreground `compose up` keeps running while the database does, so a refusal that ends the API container
+        # would otherwise sit out the whole limit. Stop waiting once the API has exited, then Ctrl-C as the README says.
+        deadline = time.monotonic() + limit
+        while process.poll() is None and time.monotonic() < deadline and not self.api_exited():
+            time.sleep(5)
+        self.interrupt(process)
         self.checkout = self.workdir / 'facemorph.me'
         text = log.read_text(errors='replace')
         api_logs = self.compose('logs', '--no-color', 'api', log_name='api.log').stdout
