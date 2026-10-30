@@ -1,0 +1,199 @@
+{
+  "harness": "self-host/readme_test.py",
+  "mode": "cpu",
+  "project": "readmetest-cpu-20261026t173918",
+  "started": "2026-10-26T17:39:18Z",
+  "assertions": [
+    {
+      "name": "first run: build from empty cache, download and verify, healthy, URL logged",
+      "passed": true,
+      "seconds": 440.3,
+      "seconds_to_healthy": 440.3,
+      "downloaded_bytes": 1683017152,
+      "serving_logged": true,
+      "log": "quickstart.log"
+    },
+    {
+      "name": "/healthz reports provider cpu",
+      "passed": true,
+      "seconds": 0.0,
+      "health": {
+        "ready": true,
+        "provider": "cpu",
+        "gpu": null,
+        "gpu_capability": null,
+        "cuda_version": null,
+        "torch_version": "2.9.1+cpu"
+      }
+    },
+    {
+      "name": "/api/face/?seed=0&dim=512 returns a 512x512 JPEG",
+      "passed": true,
+      "seconds": 2.5,
+      "status": 200,
+      "content_type": "image/jpg",
+      "bytes": 28529,
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "name": "the original UI renders a face in a browser",
+      "passed": true,
+      "seconds": 8.0,
+      "face_images": [
+        {
+          "src": "/api/face/?dim=300&amp;value=2026-10-26&amp;format=jpg",
+          "status": 200,
+          "type": "image/jpg",
+          "size": [
+            300,
+            300
+          ]
+        },
+        {
+          "src": "/api/face/?dim=300&amp;value=hello&amp;format=jpg",
+          "status": 200,
+          "type": "image/jpg",
+          "size": [
+            300,
+            300
+          ]
+        }
+      ],
+      "screenshot": "frontend.png",
+      "dom": "frontend-dom.html"
+    },
+    {
+      "name": "smoke_frontend.py: original UI assets, SPA paths and local oEmbed",
+      "passed": true,
+      "seconds": 0.1,
+      "exit": 0,
+      "tail": [
+        "{\"original_ui_static_assets\": 4, \"spa_paths\": true, \"local_oembed\": true}"
+      ],
+      "log": "smoke_frontend.py.log"
+    },
+    {
+      "name": "test_legacy_contract.py: old seed/text semantics and the deployed route and latent contract",
+      "passed": true,
+      "seconds": 2.0,
+      "exit": 0,
+      "tail": [
+        "OK"
+      ],
+      "log": "test_legacy_contract.py.log"
+    },
+    {
+      "name": "smoke_legacy.py: photo, morph and media endpoints (faces, morph frames, GIF/WebP/MP4, previews)",
+      "passed": true,
+      "seconds": 40.9,
+      "exit": 0,
+      "tail": [
+        "{\"result\": \"pass\", \"checks\": [\"status/queue/upload form\", \"deployed seed/text identity\", \"register/read GUID and imported legacy BSON UUID\", \"JPEG/WebP/default/legacy image routes and conditional cache\", \"weighted Z/mixed W+ blends and mixed-space interpolation\", \"classic trig deduplication and linear endpoint frames\", \"GIF/animated WebP/MP4 codecs, cache, byte ranges, embed HTML and link preview\", \"multipart encoding, aligned reference W+, reconstruction and aligned/unaligned GUID cache\", \"responsive health under queued inference, bounded admission and recovery\"], \"reference_jpeg_max_error\": 7, \"reference_jpeg_mean_error\": 0.005565643310546875, \"guid\": \"134ddd0d-9603-4017-a8c8-a79014f1ef87\"}"
+      ],
+      "log": "smoke_legacy.py.log"
+    },
+    {
+      "name": "smoke_encoder_http.py: photo upload, alignment and e4e encoding over HTTP",
+      "passed": true,
+      "seconds": 7.4,
+      "exit": 0,
+      "tail": [
+        "{\"multipart_face_alignment\": true, \"max_encoder_reference_error\": 3.1888484954833984e-06, \"repeat_guid_dedup\": true, \"unaligned_default\": true, \"no_face_fallback\": true, \"w_plus_retrieval\": true, \"reconstruction_and_mixed_morph\": true, \"previous_receipt_survived\": false, \"receipt\": \"/app/checkfacedata/self-host-encoder-validation.json\"}"
+      ],
+      "log": "smoke_encoder_http.py.log"
+    },
+    {
+      "name": "down then up reuses the volumes with no re-download and is healthy within 600 s",
+      "passed": true,
+      "seconds": 25.5,
+      "seconds_to_healthy": 15.0,
+      "downloads": [],
+      "reused_verified": 3,
+      "log": "resume.log"
+    },
+    {
+      "name": "missing terms acknowledgement fails fast with the refusal and no API",
+      "passed": true,
+      "seconds": 21.3,
+      "exit": 1,
+      "api_state": "created",
+      "command": "docker compose -f self-host/compose.yml up",
+      "log": "missing-terms.log"
+    },
+    {
+      "name": "a setup killed mid-download recovers: the README command re-fetches, verifies and serves",
+      "passed": true,
+      "seconds": 11.6,
+      "partial_bytes_at_kill": 41943040,
+      "killed": true,
+      "seconds_to_healthy": 10.0,
+      "log": "kill-recover.log"
+    },
+    {
+      "name": "a corrupted asset is rejected by hash, never loaded or overwritten; moved aside, setup re-fetches",
+      "passed": true,
+      "seconds": 30.2,
+      "exit": 1,
+      "api_state": "created",
+      "refused": true,
+      "left_in_place": true,
+      "recovered": true,
+      "log": "corrupt-up.log"
+    }
+  ],
+  "environment": {
+    "host": "runnervm4yw5a",
+    "os": "Linux-6.17.0-1022-azure-aarch64-with-glibc2.39",
+    "arch": "aarch64",
+    "docker": "28.0.4",
+    "compose": "2.38.2",
+    "nvidia_smi": "not installed",
+    "docker_nvidia_runtime": false
+  },
+  "block": "git clone --branch self-host https://github.com/facemorph-me/facemorph.me-classic.git facemorph.me\ncd facemorph.me\nACCEPT_MODEL_TERMS=yes docker compose -f self-host/compose.yml up\n",
+  "substitutions": [
+    "branch self-host -> fm-fy2.16-readme-test"
+  ],
+  "run_kind": "development",
+  "isolation": {
+    "COMPOSE_PROJECT_NAME": "readmetest-cpu-20261026t173918",
+    "CHECKFACE_PORT": 60641,
+    "BUILDX_BUILDER": "readmetest-cpu-20261026t173918-builder"
+  },
+  "docker_root_free_gib": 106.2,
+  "first_run_seconds": 440.3,
+  "commit": "f4932121cc6772e3d5f55ca68da91a6f52e1c8f1",
+  "images": {
+    "setup": {
+      "id": "sha256:766b4aa7e3f0d3a874e4482abada6bd69ed1fe02b5081c51421d89f3f55cac68",
+      "repo_digests": [],
+      "size_bytes": 1731416700
+    },
+    "api": {
+      "id": "sha256:766b4aa7e3f0d3a874e4482abada6bd69ed1fe02b5081c51421d89f3f55cac68",
+      "repo_digests": [],
+      "size_bytes": 1731416700
+    },
+    "db": {
+      "id": "sha256:cff92cf11ae924b70af8689a30c0679eab4d275511ba1edb6b512827bf26322c",
+      "repo_digests": [
+        "mongo@sha256:cf340b1e5283843c63eb12999922f20c463ae31285f746d30f05dcc21cd1d47c"
+      ],
+      "size_bytes": 900135984
+    }
+  },
+  "disk": {
+    "volume_models_bytes": 1683022826,
+    "volume_database_bytes": null,
+    "volume_cache_bytes": 33192,
+    "images_bytes": 2631552684,
+    "build_cache": "2.433GB"
+  },
+  "restart_seconds": 15.0,
+  "finished": "2026-10-26T17:49:21Z",
+  "passed": true,
+  "evidence": "https://github.com/facemorph-me/facemorph.me-classic/actions/runs/40368403299"
+}

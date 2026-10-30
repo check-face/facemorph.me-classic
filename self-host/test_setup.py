@@ -41,6 +41,14 @@ class FixtureServer:
                     self.wfile.write(BODY[: len(BODY) // 2])
                     self.close_connection = True
                     return
+                if server.mode == 'quota':
+                    page = b'<!DOCTYPE html><html><head><title>Google Drive - Quota exceeded</title></head></html>'
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'text/html; charset=utf-8')
+                    self.send_header('Content-Length', str(len(page)))
+                    self.end_headers()
+                    self.wfile.write(page)
+                    return
                 body = BODY if server.mode == 'healthy' else OTHER
                 self.send_response(200)
                 self.send_header('Content-Length', str(len(body)))
@@ -143,6 +151,15 @@ class FetchVerified(unittest.TestCase):
     def test_encoder_wrong_checksum_is_rejected(self):
         entry = {'url': self.server.url, 'sha256': 'f' * 64, 'bytes': len(BODY)}
         with self.assertRaises(ValueError):
+            prepare_encoder.download_entry(entry, 'asset.bin', self.directory)
+        self.assertFalse(self.target.exists())
+
+
+    def test_a_quota_page_is_rejected_and_named(self):
+        self.server.mode = 'quota'
+        entry = {'url': self.server.url, 'sha256': BODY_SHA, 'bytes': len(BODY), 'compression': 'bz2'}
+        with self.assertRaisesRegex(ValueError, 'did not match deployed checksum: asset.bin .the host sent a '
+                                    r'\d+-byte text/html page: "Google Drive - Quota exceeded", not the model'):
             prepare_encoder.download_entry(entry, 'asset.bin', self.directory)
         self.assertFalse(self.target.exists())
 

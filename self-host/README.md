@@ -50,10 +50,15 @@ API. When it is healthy it logs `Serving on http://localhost:8080`; open
 **http://localhost:8080** for the original UI. To acknowledge the terms once per
 shell instead of per command, `export ACCEPT_MODEL_TERMS=yes` first. Stopping with
 Ctrl-C and running `ACCEPT_MODEL_TERMS=yes docker compose up` again resumes: setup
-reuses verified files and replaces anything interrupted or corrupt.
+reuses verified files and restarts an interrupted download. A file that fails its hash
+is refused and left in place (setup names it and the API does not start): move it aside
+and run the command again.
 
 `/healthz` must report `"provider":"cuda"` and your GPU name. GPU mode fails startup
-if CUDA cannot be used; it never silently selects CPU. Setup downloads about 1.7 GB
+if CUDA cannot be used; it never silently selects CPU. A GPU outside the architectures
+the PyTorch wheels were built for (compute capability 7.0 to 12.x: Volta to Blackwell)
+stops at startup with a message naming the card, its compute capability and the
+supported range; use the CPU alternative on such a host. Setup downloads about 1.7 GB
 of original model assets from their authors, checks byte counts and SHA-256 hashes,
 and reuses verified files on repeat runs. No service account or API key is needed.
 
@@ -74,9 +79,15 @@ or GPU UUID from `nvidia-smi`). Do not specify both `count` and `device_ids`.
 Run the same checkout without the GPU overlay (the root `compose.yaml` includes it by
 default, so point Compose at the base file explicitly):
 
+<!-- readme-cpu: begin. The README-is-the-test harness (fm-fy2.16) runs this block verbatim, like the quickstart. -->
+
 ```sh
+git clone --branch self-host https://github.com/facemorph-me/facemorph.me-classic.git facemorph.me
+cd facemorph.me
 ACCEPT_MODEL_TERMS=yes docker compose -f self-host/compose.yml up
 ```
+
+<!-- readme-cpu: end -->
 
 The default Compose file builds CPU PyTorch; no NVIDIA driver or GPU is needed.
 CPU generation is slower, especially long animations. CPU Linux
@@ -164,6 +175,119 @@ Mongo backup/restore with supported tools. Preservation and live cutover remain
 separate, explicitly approved operations.
 
 ## Validation
+
+This distribution is **frozen: no feature updates.** It changes only to keep the
+commands below working: restoring a pinned input that is still obtainable, or the
+minimal re-pin of one that is gone for good, recorded in the matrix below.
+
+### The README is the test
+
+`self-host/readme_test.py` runs the marked quickstart and CPU blocks above
+verbatim. It starts from an empty directory, a fresh Compose project (no existing
+containers or volumes) and a fresh BuildKit builder (no build cache), and then
+checks what this README promises:
+
+- the first run builds, downloads and verifies the models, becomes healthy and logs
+  its URL;
+- `/healthz` names the provider, and for CUDA the GPU;
+- `/api/face/?seed=0&dim=512` returns a 512 px JPEG, and the original UI renders
+  faces in a browser;
+- the frontend, contract, media and encoder smokes pass, plus `smoke_gpu.py` on CUDA;
+- `down` then `up` reuses the volumes without downloading again;
+- the command without `ACCEPT_MODEL_TERMS=yes` fails fast;
+- setup killed mid-download recovers;
+- a corrupted model file is refused and left in place, and setup re-fetches it once
+  it is moved aside.
+
+Two further modes check the failure paths:
+- `gpu-absent`: a host without an NVIDIA runtime fails clearly and never serves on
+  the CPU.
+- `gpu-unsupported`: a GPU outside the wheels' architectures stops at the startup
+  capability check, then the CPU block serves on the same host.
+
+The run writes `result.json` with every assertion, the commit, the image digests and
+the host. The only change the harness may make to a block is the repository and
+branch of a development run, which it logs and labels.
+
+The [rot check](../.github/workflows/self-host-rot.yml) runs the harness on every
+push to `self-host` paths, monthly and on dispatch. The CPU and no-GPU cells run on
+GitHub-hosted runners; the GPU cells run monthly and on dispatch only. A failure
+opens one issue for the classic distribution: restore the pinned input, or make the
+minimal re-pin, and never a general dependency bump. A dead upstream weight link is
+reported as such, not worked around.
+
+### GPU support
+
+| | Supported | Tested (dated rows in the matrix below) |
+|---|---|---|
+| Compute capability | 7.0 to 12.x (Volta, Turing, Ampere, Ada, Hopper, Blackwell): the pinned torch 2.9.1+cu128 wheels ship `sm_70, sm_75, sm_80, sm_86, sm_90, sm_100, sm_120` | 7.5 (RTX 2080 SUPER) |
+| Driver | Linux 570 or newer (CUDA 12.8) | 610.57.04 |
+| Pascal (6.x) and older | CPU only: the startup check names the card, its capability and the supported range, then exits; use the CPU block | untested: the Pascal host (GTX 1080, 6.1) runs driver 470.256.02, older than the 570 these wheels need, so PyTorch sees no CUDA and stops with "CUDA requested but unavailable … check your host driver" before the capability check can run. The 570 and 580 driver branches still support Pascal. |
+| Blackwell (12.x) | supported by the arch list | untested: the README-executed acceptance runs on the newest generation once before a release tag |
+
+**The one allowed unfreeze.** When a new GPU generation is missing from the pinned
+wheels' arch list, the torch and CUDA pin may be bumped, and nothing else. That
+change must pass this same README-executed acceptance, and this table must state the
+new range, including any older generation the newer wheels drop (the lower bound
+moves). It is the only dependency change the frozen distribution allows besides the
+minimal re-pin of an input that is gone for good.
+
+### Validated matrix
+
+Only cells that actually ran are listed. Records: [validation/2026-10-26](validation/2026-10-26/).
+
+| Cell | Host | Docker / Compose | Driver / GPU | Commit | Date | First run to healthy | Result |
+|---|---|---|---|---|---|---|---|
+| CUDA quickstart | Linux x86-64 workstation | 29.7.2 / 5.5.1 | 610.57.04 / RTX 2080 SUPER (Turing, 7.5) | `716cfaf` | 2026-10-26 | 2,051 s | 13/13 |
+| CPU block, amd64 | GitHub-hosted Ubuntu 24.04 | 28.0.4 / 2.38.2 | none | `f493212` | 2026-10-26 | 565 s | 12/12 |
+| CPU block, arm64 | GitHub-hosted Ubuntu 24.04 arm64 | 28.0.4 / 2.38.2 | none | `f493212` | 2026-10-26 | 440 s | 12/12 |
+| Quickstart without an NVIDIA runtime | GitHub-hosted Ubuntu 24.04 | 28.0.4 / 2.38.2 | none | `f493212` | 2026-10-26 | fails clearly, no CPU | 1/1 |
+
+These were development runs of this branch before merge: the harness cloned the PR
+branch in place of `self-host`, its one logged substitution.
+
+**Measured on the CUDA run:**
+- The first run took about 34 minutes on the workstation, most of it the image build
+  (CUDA PyTorch wheels and compiling dlib), and downloaded 1.68 GB of models.
+- Later starts were healthy in 25 s.
+- Disk: about 1.7 GB of models, a CUDA image of about 4.6 GB, and about 1.3 GB of
+  build cache. While the fresh build loaded its image, free space dropped by about
+  15 GB.
+
+**On CPU hosted runners:** a 2.6 to 3.0 GB image and 2.4 to 2.9 GB of build cache.
+
+**Untested:**
+- the Pascal refusal on real hardware: the GTX 1080 host needs a 570 or 580 driver
+  first (it has 470.256.02);
+- every NVIDIA GPU other than the RTX 2080 SUPER, including Blackwell, which is
+  needed once before a release tag on a machine the operator supplies or approves
+  renting;
+- the TrueNAS GTX 1050, an optional extra Pascal cell: its runner user cannot reach
+  Docker without sudo;
+- Jetson, Windows, WSL2 and macOS.
+
+**Not guaranteed:**
+- GPUs older than Volta (compute capability below 7.0), or newer than the kernels and
+  PTX in the pinned wheels;
+- future Docker, Compose, driver or Container Toolkit behaviour;
+- the third-party hosts that serve the model weights.
+
+**What the default build reaches on your machine:**
+- Docker Hub, for the pinned Python and MongoDB images;
+- Debian's apt mirrors, for FFmpeg and the compiler toolchain (dlib compiles from
+  source);
+- PyPI and download.pytorch.org, for the hash-locked wheels;
+- GitHub, for NVlabs `stylegan2-ada-pytorch` at commit `d72cc7d`, checked by SHA-256.
+
+**Model weights** come from their authors at setup: NVIDIA's CDN (StyleGAN2 FFHQ),
+dlib.net (landmark model) and one Google Drive link (e4e encoder). Google Drive
+limits downloads of a file per day. Past the limit, it serves a "Quota exceeded"
+page instead of the encoder. Setup then refuses it by hash, names the page, and
+installs nothing; run the same command again later. This happened on 26 October
+2026, after a day of validation runs. Compose v2.20 or
+newer is required for the root `compose.yaml`'s `include`.
+
+### Running the checks yourself
 
 The CPU CI builds its own image, acquires the real models and exercises
 actual HTTP inference. It retains tested images as temporary CI artifacts, not a public container release.
