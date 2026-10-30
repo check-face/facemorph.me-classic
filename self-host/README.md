@@ -234,12 +234,14 @@ minimal re-pin of an input that is gone for good.
 
 ### Validated matrix
 
-Only cells that actually ran are listed. Records: [validation/2026-10-26](validation/2026-10-26/); the Pascal row is
-[run 41002087346](https://github.com/facemorph-me/facemorph.me-classic/actions/runs/41002087346) (artifact `readme-test-gpu-gtx1080`).
+Only cells that actually ran are listed. Records: [validation/2026-10-26](validation/2026-10-26/); the 30 October rows are
+[run 41009284022](https://github.com/facemorph-me/facemorph.me-classic/actions/runs/41009284022) (artifact `readme-test-gpu-rtx2080s`)
+and [run 41002087346](https://github.com/facemorph-me/facemorph.me-classic/actions/runs/41002087346) (artifact `readme-test-gpu-gtx1080`).
 
 | Cell | Host | Docker / Compose | Driver / GPU | Commit | Date | First run to healthy | Result |
 |---|---|---|---|---|---|---|---|
 | CUDA quickstart | Linux x86-64 workstation | 29.7.2 / 5.5.1 | 610.57.04 / RTX 2080 SUPER (Turing, 7.5) | `716cfaf` | 2026-10-26 | 2,051 s | 13/13 |
+| CUDA quickstart (canonical, dispatched rot check) | Linux x86-64 workstation | 29.7.2 / 5.5.1 | 610.57.04 / RTX 2080 SUPER (Turing, 7.5) | `0453bdf` | 2026-10-30 | 1,015 s | 13/13 |
 | CPU block, amd64 | GitHub-hosted Ubuntu 24.04 | 28.0.4 / 2.38.2 | none | `f493212` | 2026-10-26 | 565 s | 12/12 |
 | CPU block, arm64 | GitHub-hosted Ubuntu 24.04 arm64 | 28.0.4 / 2.38.2 | none | `f493212` | 2026-10-26 | 440 s | 12/12 |
 | Quickstart without an NVIDIA runtime | GitHub-hosted Ubuntu 24.04 | 28.0.4 / 2.38.2 | none | `f493212` | 2026-10-26 | fails clearly, no CPU | 1/1 |
