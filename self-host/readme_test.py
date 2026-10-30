@@ -370,9 +370,12 @@ class Run:
         downloads = [int(n) for n in re.findall(r'downloaded (\d+) bytes', text)]
         reused = len(re.findall(r'reused verified', text))
         provider_ok = (self.health() or {}).get('provider') == provider
-        # Zero weight bytes: setup reports no download, and no model file was rewritten (a download replaces the
-        # file, so its inode or mtime would change).
-        unchanged = before is not None and before == after and len(before) >= 3
+        # Zero weight bytes: setup reports no download, and no weight file was rewritten (a download replaces the
+        # file, so its inode or mtime would change). Setup rewrites its small provenance records on every start,
+        # so those *.json files are not weights and are left out of the comparison.
+        weights = lambda rows: [row for row in rows if not row.split(' ', 1)[0].endswith('.json')]
+        unchanged = (before is not None and after is not None and weights(before) == weights(after)
+                     and len(weights(before)) >= 3)
         ok = (down.returncode == 0 and healthy is not None and not any(downloads) and reused >= 2 and provider_ok
               and unchanged)
         self.result['restart_seconds'] = healthy
