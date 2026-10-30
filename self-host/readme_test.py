@@ -46,6 +46,7 @@ MODEL = 'stylegan2-ffhq-config-f.pkl'
 MODEL_BYTES = 381673535
 # A small encoder asset for the corruption check (refused by hash, never overwritten).
 CORRUPT_ASSET = 'shape_predictor_68_face_landmarks.dat'
+MODEL_LISTING = re.compile(r'\S+ \d+ \d+ \d+(\.\d+)?')
 SERVING = 'Serving on http://localhost:8080'
 PROBE_IMAGE = ('python:3.11-slim-bookworm@sha256:'
                'f06d01d4ba3f8ad5af45a3ec87df19c1d317d8e8961edc0fabda61811af6f7cf')
@@ -285,7 +286,9 @@ class Run:
     def model_files(self):
         """name, size, inode and mtime of every file in the models volume: any download rewrites one."""
         r = self.in_models("find /models -type f -printf '%P %s %i %T@\\n' | sort", 'models-listing.log')
-        return r.stdout.strip().splitlines() if r.returncode == 0 else None
+        # Only find's own lines: Compose interleaves progress on the combined output ("Network ... Created" when
+        # `run` recreates the network after `down`), which would differ between two otherwise equal listings.
+        return [line for line in r.stdout.splitlines() if MODEL_LISTING.fullmatch(line)] if r.returncode == 0 else None
 
     def health_and_face(self, provider):
         t = time.monotonic()

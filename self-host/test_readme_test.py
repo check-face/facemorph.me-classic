@@ -109,5 +109,15 @@ class RotReportTests(unittest.TestCase):
         self.assertIn('the harness did not start', body)
 
 
+class ModelListingTests(unittest.TestCase):
+    def test_compose_progress_is_not_a_model_file(self):
+        out = (' Network readmetest-cpu_default  Creating\n Network readmetest-cpu_default  Created\n'
+               'e4e_ffhq_encode.pt 1201649680 9699845 1793323395.5693012540\n'
+               'stylegan2/network.pkl 364000000 9699846 1793323387.25\n')
+        kept = [line for line in out.splitlines() if readme_test.MODEL_LISTING.fullmatch(line)]
+        self.assertEqual(kept, ['e4e_ffhq_encode.pt 1201649680 9699845 1793323395.5693012540',
+                                'stylegan2/network.pkl 364000000 9699846 1793323387.25'])
+
+
 if __name__ == '__main__':
     unittest.main()
